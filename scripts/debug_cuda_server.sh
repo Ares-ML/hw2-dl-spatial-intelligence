@@ -4,6 +4,8 @@ set -u
 ENV_NAME="${1:-hw2}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+source scripts/cuda_driver_shim.sh
+prepare_cuda_driver_shim
 
 echo "== System =="
 date
@@ -35,6 +37,64 @@ echo
 echo "== libcuda candidates =="
 ldconfig -p 2>/dev/null | grep -E 'libcuda|libnvidia-ml' || true
 find /usr /opt -name 'libcuda.so*' -o -name 'libnvidia-ml.so*' 2>/dev/null | sort || true
+
+echo
+echo "== libcuda inode analysis =="
+python - <<'PY'
+from __future__ import annotations
+
+import os
+import pathlib
+import subprocess
+
+roots = [pathlib.Path(p) for p in ("/usr", "/lib", "/opt", "/run/nvidia/driver")]
+driver = subprocess.run(
+    ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+    check=False,
+    capture_output=True,
+    text=True,
+).stdout.splitlines()
+driver_version = driver[0].strip() if driver else ""
+
+rows = []
+seen = set()
+for root in roots:
+    if not root.exists():
+        continue
+    for path in root.rglob("libcuda.so*"):
+        try:
+            resolved = path.resolve()
+            stat = resolved.stat()
+        except OSError:
+            continue
+        key = (stat.st_dev, stat.st_ino, str(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        labels = []
+        text = str(path)
+        resolved_text = str(resolved)
+        if "/compat/" in text or "/compat/" in resolved_text:
+            labels.append("compat")
+        if "/stubs/" in text or "/stubs/" in resolved_text:
+            labels.append("stubs")
+        if driver_version and resolved_text.endswith(driver_version):
+            labels.append("driver-match")
+        rows.append((stat.st_dev, stat.st_ino, text, resolved_text, ",".join(labels) or "normal"))
+
+for dev, ino, path, resolved, labels in sorted(rows, key=lambda r: (r[4], r[2])):
+    print(f"{dev}:{ino} {labels:20s} {path} -> {resolved}")
+
+best = [
+    resolved
+    for _, _, _, resolved, labels in rows
+    if "driver-match" in labels and "compat" not in labels and "stubs" not in labels
+]
+if best:
+    print(f"BEST_NON_COMPAT_LIBCUDA={best[0]}")
+else:
+    print("BEST_NON_COMPAT_LIBCUDA=<not found>")
+PY
 
 echo
 echo "== Conda Packages =="

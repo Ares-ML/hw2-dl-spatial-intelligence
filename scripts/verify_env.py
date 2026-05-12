@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import ctypes.util
 import importlib
 import importlib.metadata
 import os
@@ -64,6 +66,29 @@ def has_cuda_compat_path() -> bool:
         "/cuda/compat" in path or ("/cuda-" in path and path.endswith("/compat"))
         for path in ld_library_path.split(":")
     )
+
+
+def loaded_library_paths(name_fragment: str) -> list[str]:
+    maps_path = Path("/proc/self/maps")
+    if not maps_path.exists():
+        return []
+    paths: set[str] = set()
+    for line in maps_path.read_text(errors="ignore").splitlines():
+        if name_fragment in line:
+            parts = line.split()
+            if parts:
+                paths.add(parts[-1])
+    return sorted(paths)
+
+
+def libcuda_probe() -> str:
+    found = ctypes.util.find_library("cuda")
+    try:
+        ctypes.CDLL("libcuda.so.1")
+    except OSError as exc:
+        return f"find_library={found}; CDLL failed: {exc}"
+    loaded = loaded_library_paths("libcuda")
+    return f"find_library={found}; loaded={loaded or '<unknown>'}"
 
 
 def package_version(module_name: str, distribution_name: str) -> tuple[object | None, str]:
@@ -179,6 +204,7 @@ def main() -> int:
     print(f"Repo root: {REPO_ROOT}")
     print(f"Git commit: {run_command(['git', 'rev-parse', '--short', 'HEAD'])}")
     print(f"LD_LIBRARY_PATH: {os.environ.get('LD_LIBRARY_PATH', '') or '<empty>'}")
+    print(f"libcuda probe: {libcuda_probe()}")
 
     modules, failures = verify_imports()
     failures.extend(verify_torch(modules, args.require_cuda))

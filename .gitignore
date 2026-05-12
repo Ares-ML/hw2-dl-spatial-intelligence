@@ -10,6 +10,7 @@ outputs/
 checkpoints/
 weights/
 *.log
+.cuda_driver_shim/
 
 # Model artifacts
 *.pt
