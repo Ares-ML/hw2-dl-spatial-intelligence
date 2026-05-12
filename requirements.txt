@@ -1,0 +1,7 @@
+ultralytics==8.4.41
+albumentations==2.0.8
+swanlab==0.7.17
+opencv-python
+numpy
+pillow
+pyyaml
