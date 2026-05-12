@@ -1,0 +1,11 @@
+2026-05-13 04:33:24 | INFO | Task 1 ResNet-18 Flower102 smoke test
+2026-05-13 04:33:24 | INFO | repo_root=/root/Zhr/DL/HW2
+2026-05-13 04:33:24 | INFO | data_root=/root/Zhr/DL/HW2/data/flower102
+2026-05-13 04:33:24 | INFO | device=cuda
+2026-05-13 04:33:24 | INFO | torch=2.5.1+cu121 torchvision=0.20.1+cu121
+2026-05-13 04:33:26 | INFO | batch_shape=(16, 3, 224, 224)
+2026-05-13 04:33:26 | INFO | label_min=10 label_max=100
+2026-05-13 04:33:26 | INFO | loss_before=4.73724699
+2026-05-13 04:33:26 | INFO | loss_after=2.50365734
+2026-05-13 04:33:26 | INFO | loss_delta=2.23358965
+2026-05-13 04:33:26 | INFO | PASS loss_after < loss_before
