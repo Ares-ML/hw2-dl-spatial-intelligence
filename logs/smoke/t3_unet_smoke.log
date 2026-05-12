@@ -1,18 +1,18 @@
 Task 3 U-Net Stanford Background smoke test
-repo_root=D:\graduate\coding\course\1_down\DL\HW2
-data_root=data\stanford_background
+repo_root=/root/Zhr/DL/HW2
+data_root=data/stanford_background
 split=train
 batch_size=2
 image_size=256
 num_classes=8
 ignore_index=255
-device=cpu
+device=cuda
 dataset_size=572
 batch_images_shape=[2, 3, 256, 256]
 batch_masks_shape=[2, 256, 256]
 mask_values=[0, 1, 2, 4, 5, 7, 255]
 logits_shape=[2, 8, 256, 256]
-loss=2.10305572
+loss=2.10284853
 shape_flow:
 - input: [2, 3, 256, 256]
 - enc1: [2, 16, 256, 256]
