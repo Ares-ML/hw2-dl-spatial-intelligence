@@ -1,0 +1,29 @@
+# Course handouts and local planning docs
+pdf/
+参考文档与执行方案/
+
+# Data, logs, outputs
+data/
+datasets/
+runs/
+outputs/
+checkpoints/
+weights/
+
+# Model artifacts
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
