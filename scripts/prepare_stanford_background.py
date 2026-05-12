@@ -27,13 +27,15 @@ PALETTE = [
     (241, 134, 51),
 ]
 IGNORE_INDEX = 255
+EXPECTED_RAW_VALUES = {-1, *range(len(CLASS_NAMES))}
+EXPECTED_MASK_VALUES = {*range(len(CLASS_NAMES)), IGNORE_INDEX}
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="Stanford Background output root.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for train/val split and samples.")
-    parser.add_argument("--samples", type=int, default=6, help="Number of samples in class_check.png.")
+    parser.add_argument("--samples", type=int, default=5, help="Number of samples in mask_check.png.")
     parser.add_argument("--skip-download", action="store_true", help="Validate existing data only.")
     parser.add_argument("--archive", type=Path, default=None, help="Manual iccv09Data archive to extract.")
     parser.add_argument("--url", default=DEFAULT_URL, help="Stanford Background archive URL.")
@@ -101,7 +103,30 @@ def infer_label_offset(region_paths: list[Path]) -> int:
     return 0
 
 
-def convert_masks(iccv09_root: Path, masks_dir: Path) -> tuple[list[str], Counter[int]]:
+def check_mask_mapping(
+    raw_values: set[int],
+    mask_values: set[int],
+    raw_unknown_pixels: int,
+    mask_ignore_pixels: int,
+) -> None:
+    if raw_values != EXPECTED_RAW_VALUES:
+        raise RuntimeError(
+            f"Unexpected Stanford region values: {sorted(raw_values)}; "
+            f"expected {sorted(EXPECTED_RAW_VALUES)}"
+        )
+    if mask_values != EXPECTED_MASK_VALUES:
+        raise RuntimeError(
+            f"Unexpected mask values: {sorted(mask_values)}; "
+            f"expected {sorted(EXPECTED_MASK_VALUES)}"
+        )
+    if raw_unknown_pixels != mask_ignore_pixels:
+        raise RuntimeError(
+            f"ignore_index mismatch: raw -1 pixels={raw_unknown_pixels}, "
+            f"mask {IGNORE_INDEX} pixels={mask_ignore_pixels}"
+        )
+
+
+def convert_masks(iccv09_root: Path, masks_dir: Path) -> tuple[list[str], Counter[int], dict[str, Any]]:
     import numpy as np
     from PIL import Image
 
@@ -109,6 +134,10 @@ def convert_masks(iccv09_root: Path, masks_dir: Path) -> tuple[list[str], Counte
     masks_dir.mkdir(parents=True, exist_ok=True)
     ids: list[str] = []
     pixel_counts: Counter[int] = Counter()
+    raw_values: set[int] = set()
+    mask_values: set[int] = set()
+    raw_unknown_pixels = 0
+    mask_ignore_pixels = 0
     region_paths = sorted(labels_dir.glob("*.regions.txt"))
     if not region_paths:
         raise RuntimeError(f"No *.regions.txt files found in {labels_dir}")
@@ -120,15 +149,26 @@ def convert_masks(iccv09_root: Path, masks_dir: Path) -> tuple[list[str], Counte
     for regions_path in region_paths:
         image_id = regions_path.name.replace(".regions.txt", "")
         raw = np.loadtxt(regions_path).astype(np.int64) - label_offset
+        raw_values.update(int(value) for value in np.unique(raw))
+        raw_unknown_pixels += int((raw == -1).sum())
         valid = (raw >= 0) & (raw < len(CLASS_NAMES))
         mask = np.full(raw.shape, IGNORE_INDEX, dtype=np.uint8)
         mask[valid] = raw[valid].astype(np.uint8)
+        mask_values.update(int(value) for value in np.unique(mask))
+        mask_ignore_pixels += int((mask == IGNORE_INDEX).sum())
         for class_id in range(len(CLASS_NAMES)):
             pixel_counts[class_id] += int((mask == class_id).sum())
         Image.fromarray(mask).save(masks_dir / f"{image_id}.png")
         ids.append(image_id)
 
-    return ids, pixel_counts
+    check_mask_mapping(raw_values, mask_values, raw_unknown_pixels, mask_ignore_pixels)
+    mapping_check = {
+        "raw_values": sorted(raw_values),
+        "mask_values": sorted(mask_values),
+        "raw_unknown_pixels": raw_unknown_pixels,
+        "mask_ignore_pixels": mask_ignore_pixels,
+    }
+    return ids, pixel_counts, mapping_check
 
 
 def write_splits(ids: list[str], split_dir: Path, seed: int) -> tuple[Path, Path]:
@@ -271,14 +311,21 @@ def main() -> None:
     iccv09_root = find_iccv09(args.root)
     masks_dir = args.root / "masks"
     split_dir = args.root / "splits"
-    ids, pixel_counts = convert_masks(iccv09_root, masks_dir)
+    ids, pixel_counts, mapping_check = convert_masks(iccv09_root, masks_dir)
     train_path, val_path = write_splits(ids, split_dir, args.seed)
-    check_path = args.root / "checks" / "class_check.png"
+    check_path = args.root / "checks" / "mask_check.png"
     make_check_image(iccv09_root, masks_dir, check_path, ids, pixel_counts, args.seed, args.samples)
 
     print("Stanford Background summary")
     print(f"- images/masks: {len(ids)}")
     print(f"- classes: {len(CLASS_NAMES)} ({', '.join(CLASS_NAMES)})")
+    print(f"- raw regions values: {mapping_check['raw_values']}")
+    print(f"- mask values: {mapping_check['mask_values']}")
+    print(
+        f"- ignore_index={IGNORE_INDEX}: "
+        f"raw -1 pixels={mapping_check['raw_unknown_pixels']}, "
+        f"mask pixels={mapping_check['mask_ignore_pixels']}"
+    )
     print(f"Wrote {masks_dir}")
     print(f"Wrote {train_path}")
     print(f"Wrote {val_path}")

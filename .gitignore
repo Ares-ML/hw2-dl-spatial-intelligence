@@ -10,6 +10,11 @@ data/road_vehicle/*
 !data/road_vehicle/checks/
 data/road_vehicle/checks/*
 !data/road_vehicle/checks/class_check.png
+!data/stanford_background/
+data/stanford_background/*
+!data/stanford_background/checks/
+data/stanford_background/checks/*
+!data/stanford_background/checks/mask_check.png
 datasets/
 runs/
 outputs/
