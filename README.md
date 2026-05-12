@@ -30,6 +30,12 @@ CUDA 12.4 wheel set can be selected explicitly:
 PYTORCH_FLAVOR=cu124 bash scripts/setup_env_server.sh
 ```
 
+To verify an existing server environment without reinstalling packages:
+
+```bash
+bash scripts/verify_env_server.sh
+```
+
 The local development machine does not need to download CUDA wheels if it has no NVIDIA GPU.
 
 ## Notes

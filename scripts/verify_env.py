@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import importlib.metadata
+import os
 import re
 import platform
 import subprocess
@@ -55,6 +56,14 @@ def first_driver_major(nvidia_smi_output: str) -> int | None:
     if match is None:
         return None
     return int(match.group(1))
+
+
+def has_cuda_compat_path() -> bool:
+    ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
+    return any(
+        "/cuda/compat" in path or ("/cuda-" in path and path.endswith("/compat"))
+        for path in ld_library_path.split(":")
+    )
 
 
 def package_version(module_name: str, distribution_name: str) -> tuple[object | None, str]:
@@ -118,6 +127,11 @@ def verify_torch(modules: dict[str, object], require_cuda: bool) -> list[str]:
         message = "CUDA is not available in this environment"
         if require_cuda:
             failures.append(message)
+            if has_cuda_compat_path():
+                failures.append(
+                    "LD_LIBRARY_PATH contains a CUDA forward-compat path. "
+                    "Run via scripts/verify_env_server.sh or remove /usr/local/cuda*/compat."
+                )
             driver_major = first_driver_major(smi_output)
             if driver_major is not None and driver_major < 550 and str(torch.version.cuda).startswith("12.4"):
                 failures.append(
@@ -164,6 +178,7 @@ def main() -> int:
     print(f"Platform: {platform.platform()}")
     print(f"Repo root: {REPO_ROOT}")
     print(f"Git commit: {run_command(['git', 'rev-parse', '--short', 'HEAD'])}")
+    print(f"LD_LIBRARY_PATH: {os.environ.get('LD_LIBRARY_PATH', '') or '<empty>'}")
 
     modules, failures = verify_imports()
     failures.extend(verify_torch(modules, args.require_cuda))
