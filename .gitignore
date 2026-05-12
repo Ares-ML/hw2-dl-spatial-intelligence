@@ -21,6 +21,12 @@ outputs/
 checkpoints/
 weights/
 *.log
+!logs/
+logs/*
+!logs/smoke/
+logs/smoke/*
+!logs/smoke/t1_resnet18_smoke.log
+!logs/smoke/t2_yolov8n_smoke.log
 .cuda_driver_shim/
 
 # Model artifacts
