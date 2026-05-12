@@ -19,35 +19,40 @@ DEFAULT_SLUG = "ashfakyeafi/road-vehicle-images-dataset"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 MIN_BOX_SIZE = 1e-6
 CLASS_NAMES = [
-    "car",
-    "bus",
-    "motorbike",
-    "three wheelers -CNG-",
-    "rickshaw",
-    "truck",
-    "pickup",
-    "minivan",
-    "suv",
-    "van",
-    "bicycle",
-    "auto rickshaw",
-    "human hauler",
-    "wheelbarrow",
     "ambulance",
-    "minibus",
-    "taxi",
     "army vehicle",
-    "scooter",
-    "policecar",
+    "auto rickshaw",
+    "bicycle",
+    "bus",
+    "car",
     "garbagevan",
+    "human hauler",
+    "minibus",
+    "minivan",
+    "motorbike",
+    "pickup",
+    "policecar",
+    "rickshaw",
+    "scooter",
+    "suv",
+    "taxi",
+    "three wheelers -CNG-",
+    "truck",
+    "van",
+    "wheelbarrow",
 ]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="Road Vehicle output root.")
+    parser.add_argument(
+        "--yaml-root",
+        default=None,
+        help="Override the `path:` value written to data.yaml, e.g. the GPU server dataset root.",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sample selection.")
-    parser.add_argument("--samples", type=int, default=12, help="Number of samples in class_check.png.")
+    parser.add_argument("--samples", type=int, default=20, help="Number of samples in class_check.png.")
     parser.add_argument("--skip-download", action="store_true", help="Validate existing data only.")
     parser.add_argument("--archive", type=Path, default=None, help="Manual .zip/.tar archive to extract.")
     parser.add_argument("--slug", default=DEFAULT_SLUG, help="Kaggle dataset slug.")
@@ -128,6 +133,49 @@ def image_files(images_dir: Path) -> list[Path]:
     return sorted(path for path in images_dir.rglob("*") if path.suffix.lower() in IMAGE_EXTENSIONS)
 
 
+def normalize_class_names(raw_names: Any) -> list[str] | None:
+    if isinstance(raw_names, list):
+        names = [str(name) for name in raw_names]
+    elif isinstance(raw_names, dict):
+        try:
+            ordered_keys = sorted(raw_names, key=lambda key: int(key))
+        except (TypeError, ValueError):
+            return None
+        names = [str(raw_names[key]) for key in ordered_keys]
+    else:
+        return None
+    return names if names else None
+
+
+def load_class_names(root: Path) -> list[str]:
+    try:
+        import yaml
+    except ImportError:
+        return list(CLASS_NAMES)
+
+    preferred = [root / "trafic_data" / "data_1.yaml", root / "data_1.yaml"]
+    discovered = sorted(path for path in root.rglob("*.yaml") if path.name != "data.yaml")
+    candidates: list[Path] = []
+    for path in preferred + discovered:
+        if path not in candidates:
+            candidates.append(path)
+
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            config = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(config, dict):
+            continue
+        names = normalize_class_names(config.get("names"))
+        if names is not None:
+            return names
+
+    return list(CLASS_NAMES)
+
+
 def read_image_size(path: Path) -> tuple[int, int]:
     from PIL import Image
 
@@ -175,6 +223,7 @@ def read_label_file(
     path: Path,
     image_size: tuple[int, int],
     repair_labels: bool,
+    class_names: list[str],
 ) -> tuple[list[tuple[int, float, float, float, float]], list[str], list[str]]:
     boxes: list[tuple[int, float, float, float, float]] = []
     errors: list[str] = []
@@ -194,8 +243,8 @@ def read_label_file(
         except ValueError:
             errors.append(f"{path}:{line_number}: non-numeric YOLO label")
             continue
-        if not 0 <= class_id < len(CLASS_NAMES):
-            errors.append(f"{path}:{line_number}: class id {class_id} outside 0..{len(CLASS_NAMES) - 1}")
+        if not 0 <= class_id < len(class_names):
+            errors.append(f"{path}:{line_number}: class id {class_id} outside 0..{len(class_names) - 1}")
             continue
 
         repaired, message = repair_box((x, y, w, h), image_size)
@@ -227,7 +276,7 @@ def read_label_file(
     return boxes, errors, warnings
 
 
-def validate_split(images_dir: Path, labels_dir: Path, repair_labels: bool) -> dict[str, Any]:
+def validate_split(images_dir: Path, labels_dir: Path, repair_labels: bool, class_names: list[str]) -> dict[str, Any]:
     files = image_files(images_dir)
     counts: Counter[int] = Counter()
     missing: list[Path] = []
@@ -246,7 +295,12 @@ def validate_split(images_dir: Path, labels_dir: Path, repair_labels: bool) -> d
         except Exception as exc:
             errors.append(f"{image_path}: failed to read image size: {exc}")
             continue
-        boxes, label_errors, label_warnings = read_label_file(label_path, size, repair_labels=repair_labels)
+        boxes, label_errors, label_warnings = read_label_file(
+            label_path,
+            size,
+            repair_labels=repair_labels,
+            class_names=class_names,
+        )
         errors.extend(label_errors)
         warnings.extend(label_warnings)
         if not boxes:
@@ -271,16 +325,23 @@ def relative_to_root(path: Path, root: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
 
 
-def write_data_yaml(root: Path, train_images: Path, valid_images: Path) -> Path:
+def write_data_yaml(
+    root: Path,
+    train_images: Path,
+    valid_images: Path,
+    class_names: list[str],
+    yaml_root: str | None,
+) -> Path:
     path = root / "data.yaml"
+    output_root = yaml_root or root.resolve().as_posix()
     lines = [
-        f"path: {root.resolve().as_posix()}",
+        f"path: {output_root}",
         f"train: {relative_to_root(train_images, root)}",
         f"val: {relative_to_root(valid_images, root)}",
-        f"nc: {len(CLASS_NAMES)}",
+        f"nc: {len(class_names)}",
         "names:",
     ]
-    lines.extend(f"  {index}: {name}" for index, name in enumerate(CLASS_NAMES))
+    lines.extend(f"  {index}: {name}" for index, name in enumerate(class_names))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
@@ -311,6 +372,7 @@ def fit_image(image: Any, size: tuple[int, int]) -> Any:
 def make_check_image(
     output_path: Path,
     stats: dict[str, dict[str, Any]],
+    class_names: list[str],
     seed: int,
     samples: int,
 ) -> None:
@@ -350,8 +412,8 @@ def make_check_image(
     max_count = max(total_counts.values()) if total_counts else 1
     bar_area = (margin, chart_top, width - margin, chart_top + chart_h)
     draw.rectangle(bar_area, outline=(180, 180, 180))
-    bar_w = max(12, (bar_area[2] - bar_area[0] - 8 * (len(CLASS_NAMES) - 1)) // len(CLASS_NAMES))
-    for class_id, name in enumerate(CLASS_NAMES):
+    bar_w = max(12, (bar_area[2] - bar_area[0] - 8 * (len(class_names) - 1)) // len(class_names))
+    for class_id, name in enumerate(class_names):
         value = total_counts.get(class_id, 0)
         left = bar_area[0] + class_id * (bar_w + 8)
         height_px = int((value / max_count) * (chart_h - 52))
@@ -361,7 +423,7 @@ def make_check_image(
         if class_id < 8:
             draw.text((left, top - 14), str(value), fill=(40, 40, 40), font=font)
     draw.text((bar_area[0] + 8, bar_area[1] + 6), f"max objects per class={max_count}", fill=(20, 20, 20), font=font)
-    legend = " | ".join(f"{idx}:{name}" for idx, name in enumerate(CLASS_NAMES[:8])) + " | ..."
+    legend = " | ".join(f"{idx}:{name}" for idx, name in enumerate(class_names[:8])) + " | ..."
     draw.text((margin, chart_top + chart_h + 8), legend, fill=(65, 65, 65), font=font)
 
     grid_top = chart_top + chart_h + 42
@@ -410,12 +472,13 @@ def main() -> None:
 
     train_images, train_labels = find_split(args.root, {"train"})
     valid_images, valid_labels = find_split(args.root, {"valid", "val", "validation"})
+    class_names = load_class_names(args.root)
 
-    data_yaml = write_data_yaml(args.root, train_images, valid_images)
+    data_yaml = write_data_yaml(args.root, train_images, valid_images, class_names, yaml_root=args.yaml_root)
     repair_labels = not args.strict_labels
     stats = {
-        "train": validate_split(train_images, train_labels, repair_labels=repair_labels),
-        "valid": validate_split(valid_images, valid_labels, repair_labels=repair_labels),
+        "train": validate_split(train_images, train_labels, repair_labels=repair_labels, class_names=class_names),
+        "valid": validate_split(valid_images, valid_labels, repair_labels=repair_labels, class_names=class_names),
     }
 
     all_errors = stats["train"]["errors"] + stats["valid"]["errors"]
@@ -451,7 +514,7 @@ def main() -> None:
             print(f"  [WARN] empty label files, first: {split_stats['empty'][0]}")
 
     check_path = args.root / "checks" / "class_check.png"
-    make_check_image(check_path, stats, seed=args.seed, samples=args.samples)
+    make_check_image(check_path, stats, class_names, seed=args.seed, samples=args.samples)
     print(f"Wrote {data_yaml}")
     print(f"Wrote {check_path}")
 

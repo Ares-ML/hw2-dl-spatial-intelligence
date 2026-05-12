@@ -3,7 +3,13 @@ pdf/
 参考文档与执行方案/
 
 # Data, logs, outputs
-data/
+data/*
+!data/road_vehicle/
+data/road_vehicle/*
+!data/road_vehicle/data.yaml
+!data/road_vehicle/checks/
+data/road_vehicle/checks/*
+!data/road_vehicle/checks/class_check.png
 datasets/
 runs/
 outputs/
