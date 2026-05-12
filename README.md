@@ -44,13 +44,26 @@ important on the course server: running the Python scripts with plain
 not placed first on `LD_LIBRARY_PATH`.
 
 ```bash
-bash scripts/run_smoke_server.sh hw2
+bash scripts/run_smoke_server.sh hw2 2>&1 | tee run_smoke_server.log
 ```
 
 The wrapper first verifies CUDA, then writes:
 
 - `logs/smoke/t1_resnet18_smoke.log`
 - `logs/smoke/t2_yolov8n_smoke.log`
+
+For Task 2, the wrapper reuses `yolov8n.pt` from the repo root or
+`weights/yolov8n.pt` when present. If the weight is missing, it tries mirror
+downloads before falling back to `yolov8n.yaml` for the smoke test. You can
+override the mirror list for domestic network environments:
+
+```bash
+YOLO_MODEL_URLS="https://your-mirror.example/yolov8n.pt" bash scripts/run_smoke_server.sh hw2
+```
+
+Task 2 disables Ultralytics AMP checks and plot generation by default to avoid
+extra network downloads during the smoke run. Set `TASK2_AMP=1` or
+`TASK2_PLOTS=1` only when those paths need to be tested explicitly.
 
 If CUDA is still unavailable while `nvidia-smi` works, collect diagnostics:
 

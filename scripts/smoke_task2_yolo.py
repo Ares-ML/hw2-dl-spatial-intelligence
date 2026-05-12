@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import sys
+import shutil
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -28,6 +28,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name", default=DEFAULT_NAME, help="Ultralytics run name.")
     parser.add_argument("--log-file", type=Path, default=DEFAULT_LOG_FILE, help="Full smoke-test log path.")
     parser.add_argument("--exist-ok", action="store_true", default=True, help="Reuse an existing smoke run directory.")
+    parser.add_argument("--amp", action="store_true", help="Enable Ultralytics AMP checks/training.")
+    parser.add_argument("--plots", action="store_true", help="Enable Ultralytics plot generation.")
+    parser.add_argument("--note", action="append", default=[], help="Extra key=value note to write to the smoke log.")
     return parser.parse_args()
 
 
@@ -35,15 +38,24 @@ def main() -> int:
     args = parse_args()
     args.log_file.parent.mkdir(parents=True, exist_ok=True)
     args.project.mkdir(parents=True, exist_ok=True)
+    disk_free_mb = shutil.disk_usage(args.project).free / 1024 / 1024
 
     with args.log_file.open("w", encoding="utf-8") as log:
         log.write("Task 2 YOLOv8 Road Vehicle smoke test\n")
         log.write(f"repo_root={REPO_ROOT}\n")
+        log.write(f"model={args.model}\n")
+        log.write(f"project={args.project}\n")
+        log.write(f"amp={args.amp}\n")
+        log.write(f"plots={args.plots}\n")
+        log.write(f"disk_free_mb={disk_free_mb:.1f}\n")
+        for note in args.note:
+            log.write(f"{note}\n")
         log.write(
             "command=yolo detect train "
             f"data={args.data} model={args.model} epochs={args.epochs} imgsz={args.imgsz} "
             f"batch={args.batch} project={args.project} name={args.name} "
-            f"device={args.device} workers={args.workers} exist_ok={args.exist_ok}\n\n"
+            f"device={args.device} workers={args.workers} exist_ok={args.exist_ok} "
+            f"amp={args.amp} plots={args.plots}\n\n"
         )
         log.flush()
 
@@ -62,6 +74,8 @@ def main() -> int:
                     device=args.device,
                     workers=args.workers,
                     exist_ok=args.exist_ok,
+                    amp=args.amp,
+                    plots=args.plots,
                 )
         except Exception as exc:
             log.write(f"\nFAIL ultralytics smoke train failed: {exc}\n")
