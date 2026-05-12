@@ -86,7 +86,7 @@ The local development machine does not need to download CUDA wheels if it has no
 
 ## SwanLab
 
-The Day 1 SwanLab milestone uses one project under the `Ares-ML` workspace:
+The Day 1 SwanLab milestone uses one project under the `Ares_ML` workspace:
 `hw2-dl-spatial-intelligence`. Runs are grouped as `task1`, `task2`, and
 `task3`, and metrics use the `taskN/<metric_name>` convention.
 
@@ -100,7 +100,7 @@ bash scripts/run_swanlab_smoke_server.sh hw2 2>&1 | tee run_swanlab_smoke_server
 If needed, override the cloud target without editing config files:
 
 ```bash
-SWANLAB_WORKSPACE=Ares-ML SWANLAB_PROJ_NAME=hw2-dl-spatial-intelligence \
+SWANLAB_WORKSPACE=Ares_ML SWANLAB_PROJ_NAME=hw2-dl-spatial-intelligence \
   bash scripts/run_swanlab_smoke_server.sh hw2
 ```
 

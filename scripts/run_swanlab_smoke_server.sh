@@ -11,7 +11,7 @@ SwanLab cloud initialization failed. Check the error above, then authenticate on
   conda run -n hw2 swanlab login -k <YOUR_API_KEY>
   export SWANLAB_API_KEY=<YOUR_API_KEY>
 
-If the account is logged in but still fails, confirm it can write to workspace Ares-ML,
+If the account is logged in but still fails, confirm it can write to workspace Ares_ML,
 or override the target with SWANLAB_WORKSPACE=<workspace> and SWANLAB_PROJ_NAME=<project>.
 EOF
 }

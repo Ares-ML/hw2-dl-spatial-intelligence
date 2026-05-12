@@ -14,7 +14,7 @@ from typing import Any, Mapping
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = REPO_ROOT / "configs" / "swanlab.yaml"
 DEFAULT_VALUES = {
-    "workspace": "Ares-ML",
+    "workspace": "Ares_ML",
     "project": "hw2-dl-spatial-intelligence",
     "groups": {key: key for key in ("task1", "task2", "task3")},
     "metric_prefixes": {key: key for key in ("task1", "task2", "task3")},
