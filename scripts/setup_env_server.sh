@@ -3,11 +3,17 @@ set -euo pipefail
 
 ENV_NAME="${1:-hw2}"
 PYPI_INDEX="${PYPI_INDEX:-https://mirrors.cernet.edu.cn/pypi/web/simple}"
-PYTORCH_FLAVOR="${PYTORCH_FLAVOR:-cu121}"
+PYTORCH_FLAVOR="${PYTORCH_FLAVOR:-cu118}"
 PIP_RETRIES="${PIP_RETRIES:-10}"
 PIP_TIMEOUT="${PIP_TIMEOUT:-120}"
 
 case "${PYTORCH_FLAVOR}" in
+  cu118)
+    TORCH_VERSION="${TORCH_VERSION:-2.5.1}"
+    TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.20.1}"
+    TORCHAUDIO_VERSION="${TORCHAUDIO_VERSION:-2.5.1}"
+    PYTORCH_INDEX="${PYTORCH_INDEX:-https://download.pytorch.org/whl/cu118}"
+    ;;
   cu121)
     TORCH_VERSION="${TORCH_VERSION:-2.5.1}"
     TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.20.1}"
@@ -21,7 +27,7 @@ case "${PYTORCH_FLAVOR}" in
     PYTORCH_INDEX="${PYTORCH_INDEX:-https://download.pytorch.org/whl/cu124}"
     ;;
   *)
-    echo "Unsupported PYTORCH_FLAVOR='${PYTORCH_FLAVOR}'. Use cu121 or cu124." >&2
+    echo "Unsupported PYTORCH_FLAVOR='${PYTORCH_FLAVOR}'. Use cu118, cu121, or cu124." >&2
     exit 1
     ;;
 esac
