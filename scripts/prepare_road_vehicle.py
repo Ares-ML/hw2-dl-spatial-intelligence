@@ -17,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ROOT = REPO_ROOT / "data" / "road_vehicle"
 DEFAULT_SLUG = "ashfakyeafi/road-vehicle-images-dataset"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+MIN_BOX_SIZE = 1e-6
 CLASS_NAMES = [
     "car",
     "bus",
@@ -50,6 +51,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-download", action="store_true", help="Validate existing data only.")
     parser.add_argument("--archive", type=Path, default=None, help="Manual .zip/.tar archive to extract.")
     parser.add_argument("--slug", default=DEFAULT_SLUG, help="Kaggle dataset slug.")
+    parser.add_argument(
+        "--strict-labels",
+        action="store_true",
+        help="Fail on invalid bbox rows instead of repairing or dropping them.",
+    )
     return parser.parse_args()
 
 
@@ -122,9 +128,58 @@ def image_files(images_dir: Path) -> list[Path]:
     return sorted(path for path in images_dir.rglob("*") if path.suffix.lower() in IMAGE_EXTENSIONS)
 
 
-def read_label_file(path: Path) -> tuple[list[tuple[int, float, float, float, float]], list[str]]:
+def read_image_size(path: Path) -> tuple[int, int]:
+    from PIL import Image
+
+    with Image.open(path) as image:
+        return image.size
+
+
+def format_box(box: tuple[int, float, float, float, float]) -> str:
+    class_id, x, y, w, h = box
+    return f"{class_id} {x:.6f} {y:.6f} {w:.6f} {h:.6f}"
+
+
+def repair_box(
+    values: tuple[float, float, float, float],
+    image_size: tuple[int, int],
+) -> tuple[tuple[float, float, float, float] | None, str]:
+    x, y, w, h = values
+    original = values
+
+    if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and 0.0 < w <= 1.0 and 0.0 < h <= 1.0:
+        return values, "valid"
+
+    source = "normalized"
+    if max(abs(value) for value in values) > 4.0:
+        image_w, image_h = image_size
+        if image_w <= 0 or image_h <= 0:
+            return None, "invalid image size"
+        x, y, w, h = x / image_w, y / image_h, w / image_w, h / image_h
+        source = "pixel_xywh"
+
+    x0 = max(0.0, min(1.0, x - w / 2.0))
+    y0 = max(0.0, min(1.0, y - h / 2.0))
+    x1 = max(0.0, min(1.0, x + w / 2.0))
+    y1 = max(0.0, min(1.0, y + h / 2.0))
+    new_w = x1 - x0
+    new_h = y1 - y0
+    if new_w <= MIN_BOX_SIZE or new_h <= MIN_BOX_SIZE:
+        return None, f"degenerate after clipping from {source}: {original}"
+
+    repaired = (x0 + new_w / 2.0, y0 + new_h / 2.0, new_w, new_h)
+    return repaired, f"repaired from {source}: {original} -> {repaired}"
+
+
+def read_label_file(
+    path: Path,
+    image_size: tuple[int, int],
+    repair_labels: bool,
+) -> tuple[list[tuple[int, float, float, float, float]], list[str], list[str]]:
     boxes: list[tuple[int, float, float, float, float]] = []
     errors: list[str] = []
+    warnings: list[str] = []
+    changed = False
     for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), start=1):
         line = line.strip()
         if not line:
@@ -142,19 +197,43 @@ def read_label_file(path: Path) -> tuple[list[tuple[int, float, float, float, fl
         if not 0 <= class_id < len(CLASS_NAMES):
             errors.append(f"{path}:{line_number}: class id {class_id} outside 0..{len(CLASS_NAMES) - 1}")
             continue
-        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and 0.0 < w <= 1.0 and 0.0 < h <= 1.0):
-            errors.append(f"{path}:{line_number}: bbox values must be normalized with positive width/height")
+
+        repaired, message = repair_box((x, y, w, h), image_size)
+        if repaired is None:
+            if repair_labels:
+                warnings.append(f"{path}:{line_number}: dropped invalid bbox; {message}")
+                changed = True
+            else:
+                errors.append(f"{path}:{line_number}: bbox values must be normalized with positive width/height")
             continue
+
+        if message != "valid":
+            if repair_labels:
+                warnings.append(f"{path}:{line_number}: {message}")
+                changed = True
+            else:
+                errors.append(f"{path}:{line_number}: bbox values must be normalized with positive width/height")
+                continue
+
+        x, y, w, h = repaired
         boxes.append((class_id, x, y, w, h))
-    return boxes, errors
+
+    if changed and repair_labels and not errors:
+        backup_path = path.with_suffix(path.suffix + ".bak")
+        if not backup_path.exists():
+            backup_path.write_text(path.read_text(encoding="utf-8", errors="ignore"), encoding="utf-8")
+        path.write_text("\n".join(format_box(box) for box in boxes) + ("\n" if boxes else ""), encoding="utf-8")
+
+    return boxes, errors, warnings
 
 
-def validate_split(images_dir: Path, labels_dir: Path) -> dict[str, Any]:
+def validate_split(images_dir: Path, labels_dir: Path, repair_labels: bool) -> dict[str, Any]:
     files = image_files(images_dir)
     counts: Counter[int] = Counter()
     missing: list[Path] = []
     empty: list[Path] = []
     errors: list[str] = []
+    warnings: list[str] = []
     samples: list[tuple[Path, Path, list[tuple[int, float, float, float, float]]]] = []
 
     for image_path in files:
@@ -162,8 +241,14 @@ def validate_split(images_dir: Path, labels_dir: Path) -> dict[str, Any]:
         if not label_path.exists():
             missing.append(image_path)
             continue
-        boxes, label_errors = read_label_file(label_path)
+        try:
+            size = read_image_size(image_path)
+        except Exception as exc:
+            errors.append(f"{image_path}: failed to read image size: {exc}")
+            continue
+        boxes, label_errors, label_warnings = read_label_file(label_path, size, repair_labels=repair_labels)
         errors.extend(label_errors)
+        warnings.extend(label_warnings)
         if not boxes:
             empty.append(label_path)
         for box in boxes:
@@ -177,6 +262,7 @@ def validate_split(images_dir: Path, labels_dir: Path) -> dict[str, Any]:
         "missing": missing,
         "empty": empty,
         "errors": errors,
+        "warnings": warnings,
         "samples": samples,
     }
 
@@ -326,26 +412,38 @@ def main() -> None:
     valid_images, valid_labels = find_split(args.root, {"valid", "val", "validation"})
 
     data_yaml = write_data_yaml(args.root, train_images, valid_images)
+    repair_labels = not args.strict_labels
     stats = {
-        "train": validate_split(train_images, train_labels),
-        "valid": validate_split(valid_images, valid_labels),
+        "train": validate_split(train_images, train_labels, repair_labels=repair_labels),
+        "valid": validate_split(valid_images, valid_labels, repair_labels=repair_labels),
     }
 
     all_errors = stats["train"]["errors"] + stats["valid"]["errors"]
     if all_errors:
-        print("Invalid YOLO labels found:")
+        print("Fatal YOLO label errors found:")
         for error in all_errors[:50]:
             print(f"- {error}")
         if len(all_errors) > 50:
             print(f"- ... {len(all_errors) - 50} more errors")
         raise SystemExit(1)
 
+    all_warnings = stats["train"]["warnings"] + stats["valid"]["warnings"]
+    if all_warnings:
+        action = "Repaired/dropped invalid YOLO bbox rows" if repair_labels else "Invalid YOLO bbox rows"
+        print(f"{action}: {len(all_warnings)}")
+        for warning in all_warnings[:30]:
+            print(f"- {warning}")
+        if len(all_warnings) > 30:
+            print(f"- ... {len(all_warnings) - 30} more warnings")
+
     print("Road Vehicle summary")
     for split, split_stats in stats.items():
         print(
             f"- {split}: images={len(split_stats['images'])}, "
             f"objects={sum(split_stats['counts'].values())}, "
-            f"missing_labels={len(split_stats['missing'])}, empty_labels={len(split_stats['empty'])}"
+            f"missing_labels={len(split_stats['missing'])}, "
+            f"empty_labels={len(split_stats['empty'])}, "
+            f"label_warnings={len(split_stats['warnings'])}"
         )
         if split_stats["missing"]:
             print(f"  [WARN] missing label files, first: {split_stats['missing'][0]}")
