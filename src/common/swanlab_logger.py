@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import re
+import sys
+import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -13,11 +16,18 @@ DEFAULT_CONFIG = REPO_ROOT / "configs" / "swanlab.yaml"
 DEFAULT_VALUES = {
     "workspace": "Ares-ML",
     "project": "hw2-dl-spatial-intelligence",
-    "groups": {"task1": "task1", "task2": "task2", "task3": "task3"},
-    "metric_prefixes": {"task1": "task1", "task2": "task2", "task3": "task3"},
+    "groups": {key: key for key in ("task1", "task2", "task3")},
+    "metric_prefixes": {key: key for key in ("task1", "task2", "task3")},
     "run_name_format": "{model}_{init}_{loss}_{lr}_{epoch}_{seed}",
 }
 _ACTIVE: "SwanLabRun | None" = None
+
+
+def _with_env_overrides(values: dict[str, Any]) -> dict[str, Any]:
+    for env_key, config_key in (("SWANLAB_WORKSPACE", "workspace"), ("SWANLAB_PROJ_NAME", "project")):
+        if os.environ.get(env_key):
+            values[config_key] = os.environ[env_key]
+    return values
 
 
 @dataclass
@@ -27,6 +37,7 @@ class SwanLabRun:
     run: Any = None
     project_url: str = ""
     experiment_url: str = ""
+    error: str = ""
 
 
 def load_swanlab_config(path: str | Path = DEFAULT_CONFIG) -> dict[str, Any]:
@@ -34,13 +45,14 @@ def load_swanlab_config(path: str | Path = DEFAULT_CONFIG) -> dict[str, Any]:
     if not config_path.is_absolute():
         config_path = REPO_ROOT / config_path
     if not config_path.is_file():
-        return dict(DEFAULT_VALUES)
+        return _with_env_overrides(dict(DEFAULT_VALUES))
     try:
         import yaml
     except ImportError:
-        return dict(DEFAULT_VALUES)
+        return _with_env_overrides(dict(DEFAULT_VALUES))
     with config_path.open("r", encoding="utf-8") as file:
-        return {**DEFAULT_VALUES, **(yaml.safe_load(file) or {})}
+        values = {**DEFAULT_VALUES, **(yaml.safe_load(file) or {})}
+    return _with_env_overrides(values)
 
 
 def _lr_text(value: Any) -> str:
@@ -102,8 +114,11 @@ def init_run(
         project_url = getattr(cloud, "project_url", "") or getattr(run, "get_project_url", lambda: "")()
         experiment_url = getattr(cloud, "experiment_url", "") or getattr(run, "get_url", lambda: "")()
         _ACTIVE = SwanLabRun(True, swanlab, run, str(project_url or ""), str(experiment_url or ""))
-    except Exception:
-        _ACTIVE = SwanLabRun()
+    except Exception as exc:
+        if mode == "cloud":
+            print(f"SwanLab init failed: {exc!r}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+        _ACTIVE = SwanLabRun(error=repr(exc))
     return _ACTIVE
 
 

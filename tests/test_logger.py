@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from src.common.logger import SwanLabLogger, get_git_commit, setup_logging
-from src.common.swanlab_logger import finish, format_run_name, init_run, log_metrics, metric_name
+from src.common.swanlab_logger import finish, format_run_name, init_run, load_swanlab_config, log_metrics, metric_name
 
 
 class LoggerTest(unittest.TestCase):
@@ -51,6 +52,25 @@ class LoggerTest(unittest.TestCase):
         log_metrics({"train_loss": 1.0}, step=1, task="task1")
         self.assertFalse(run.enabled)
         self.assertFalse(finish().enabled)
+
+    def test_swanlab_config_env_overrides(self) -> None:
+        old_workspace = os.environ.get("SWANLAB_WORKSPACE")
+        old_project = os.environ.get("SWANLAB_PROJ_NAME")
+        os.environ["SWANLAB_WORKSPACE"] = "override-workspace"
+        os.environ["SWANLAB_PROJ_NAME"] = "override-project"
+        try:
+            config = load_swanlab_config()
+        finally:
+            if old_workspace is None:
+                os.environ.pop("SWANLAB_WORKSPACE", None)
+            else:
+                os.environ["SWANLAB_WORKSPACE"] = old_workspace
+            if old_project is None:
+                os.environ.pop("SWANLAB_PROJ_NAME", None)
+            else:
+                os.environ["SWANLAB_PROJ_NAME"] = old_project
+        self.assertEqual(config["workspace"], "override-workspace")
+        self.assertEqual(config["project"], "override-project")
 
 
 if __name__ == "__main__":

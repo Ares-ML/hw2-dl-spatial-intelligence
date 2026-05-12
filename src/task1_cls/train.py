@@ -106,7 +106,7 @@ def main() -> int:
     run_name = format_run_name(run_values)
     run = init_run(task="task1", run_name=run_name, config=run_values, mode=args.swanlab_mode, tags=["day1", "smoke", "classification"])
     if args.require_swanlab and not run.enabled:
-        raise RuntimeError("SwanLab cloud run was required but initialization failed.")
+        raise RuntimeError(f"SwanLab cloud run was required but initialization failed: {run.error or 'no error captured'}")
 
     global_step = 0
     for epoch in range(1, epochs + 1):

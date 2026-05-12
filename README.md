@@ -93,7 +93,15 @@ The Day 1 SwanLab milestone uses one project under the `Ares-ML` workspace:
 Create the three 1-epoch smoke runs on the GPU server after `swanlab login`:
 
 ```bash
+conda run -n hw2 swanlab login -k <YOUR_API_KEY>
 bash scripts/run_swanlab_smoke_server.sh hw2 2>&1 | tee run_swanlab_smoke_server.log
+```
+
+If needed, override the cloud target without editing config files:
+
+```bash
+SWANLAB_WORKSPACE=Ares-ML SWANLAB_PROJ_NAME=hw2-dl-spatial-intelligence \
+  bash scripts/run_swanlab_smoke_server.sh hw2
 ```
 
 The runner writes the project and experiment URLs to:
