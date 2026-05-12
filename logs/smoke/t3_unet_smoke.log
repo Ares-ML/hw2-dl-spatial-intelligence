@@ -1,0 +1,35 @@
+Task 3 U-Net Stanford Background smoke test
+repo_root=D:\graduate\coding\course\1_down\DL\HW2
+data_root=data\stanford_background
+split=train
+batch_size=2
+image_size=256
+num_classes=8
+ignore_index=255
+device=cpu
+dataset_size=572
+batch_images_shape=[2, 3, 256, 256]
+batch_masks_shape=[2, 256, 256]
+mask_values=[0, 1, 2, 4, 5, 7, 255]
+logits_shape=[2, 8, 256, 256]
+loss=2.10305572
+shape_flow:
+- input: [2, 3, 256, 256]
+- enc1: [2, 16, 256, 256]
+- pool1: [2, 16, 128, 128]
+- enc2: [2, 32, 128, 128]
+- pool2: [2, 32, 64, 64]
+- enc3: [2, 64, 64, 64]
+- pool3: [2, 64, 32, 32]
+- bottleneck: [2, 128, 32, 32]
+- up3: [2, 64, 64, 64]
+- cat3: [2, 128, 64, 64]
+- dec3: [2, 64, 64, 64]
+- up2: [2, 32, 128, 128]
+- cat2: [2, 64, 128, 128]
+- dec2: [2, 32, 128, 128]
+- up1: [2, 16, 256, 256]
+- cat1: [2, 32, 256, 256]
+- dec1: [2, 16, 256, 256]
+- logits: [2, 8, 256, 256]
+PASS unet_forward_shape_and_loss

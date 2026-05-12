@@ -65,6 +65,17 @@ Task 2 disables Ultralytics AMP checks and plot generation by default to avoid
 extra network downloads during the smoke run. Set `TASK2_AMP=1` or
 `TASK2_PLOTS=1` only when those paths need to be tested explicitly.
 
+Run the Task 3 U-Net forward smoke test after preparing Stanford Background:
+
+```bash
+source scripts/cuda_driver_shim.sh
+prepare_cuda_driver_shim
+conda run -n hw2 python scripts/smoke_task3_unet.py \
+  --data-root data/stanford_background \
+  --device cuda \
+  --log-file logs/smoke/t3_unet_smoke.log
+```
+
 If CUDA is still unavailable while `nvidia-smi` works, collect diagnostics:
 
 ```bash
