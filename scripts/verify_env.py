@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import importlib.metadata
+import re
 import platform
 import subprocess
 import sys
@@ -37,6 +38,23 @@ def run_command(args: list[str]) -> str:
     if result.returncode != 0:
         return "unknown"
     return result.stdout.strip() or "unknown"
+
+
+def nvidia_smi() -> str:
+    return run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=index,name,driver_version,memory.total",
+            "--format=csv,noheader",
+        ]
+    )
+
+
+def first_driver_major(nvidia_smi_output: str) -> int | None:
+    match = re.search(r",\s*(\d+)\.", nvidia_smi_output)
+    if match is None:
+        return None
+    return int(match.group(1))
 
 
 def package_version(module_name: str, distribution_name: str) -> tuple[object | None, str]:
@@ -81,6 +99,8 @@ def verify_torch(modules: dict[str, object], require_cuda: bool) -> list[str]:
 
     print_header("PyTorch Smoke Tests")
     print(f"torch.version.cuda: {torch.version.cuda}")
+    smi_output = nvidia_smi()
+    print(f"nvidia-smi: {smi_output}")
 
     try:
         x = torch.rand(2, 3)
@@ -98,6 +118,12 @@ def verify_torch(modules: dict[str, object], require_cuda: bool) -> list[str]:
         message = "CUDA is not available in this environment"
         if require_cuda:
             failures.append(message)
+            driver_major = first_driver_major(smi_output)
+            if driver_major is not None and driver_major < 550 and str(torch.version.cuda).startswith("12.4"):
+                failures.append(
+                    "Driver is older than 550 while PyTorch uses CUDA 12.4. "
+                    "Use the default cu121 setup script path or upgrade the host driver."
+                )
             print(f"[FAIL] {message}")
         else:
             print(f"[WARN] {message}; rerun with --require-cuda on the GPU server")

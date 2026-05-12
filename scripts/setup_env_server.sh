@@ -3,7 +3,28 @@ set -euo pipefail
 
 ENV_NAME="${1:-hw2}"
 PYPI_INDEX="${PYPI_INDEX:-https://mirrors.cernet.edu.cn/pypi/web/simple}"
-PYTORCH_INDEX="${PYTORCH_INDEX:-https://download.pytorch.org/whl/cu124}"
+PYTORCH_FLAVOR="${PYTORCH_FLAVOR:-cu121}"
+PIP_RETRIES="${PIP_RETRIES:-10}"
+PIP_TIMEOUT="${PIP_TIMEOUT:-120}"
+
+case "${PYTORCH_FLAVOR}" in
+  cu121)
+    TORCH_VERSION="${TORCH_VERSION:-2.5.1}"
+    TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.20.1}"
+    TORCHAUDIO_VERSION="${TORCHAUDIO_VERSION:-2.5.1}"
+    PYTORCH_INDEX="${PYTORCH_INDEX:-https://download.pytorch.org/whl/cu121}"
+    ;;
+  cu124)
+    TORCH_VERSION="${TORCH_VERSION:-2.6.0}"
+    TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.21.0}"
+    TORCHAUDIO_VERSION="${TORCHAUDIO_VERSION:-2.6.0}"
+    PYTORCH_INDEX="${PYTORCH_INDEX:-https://download.pytorch.org/whl/cu124}"
+    ;;
+  *)
+    echo "Unsupported PYTORCH_FLAVOR='${PYTORCH_FLAVOR}'. Use cu121 or cu124." >&2
+    exit 1
+    ;;
+esac
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -18,9 +39,39 @@ else
   conda create -n "${ENV_NAME}" python=3.10 pip -y
 fi
 
-conda run -n "${ENV_NAME}" python -m pip install --upgrade pip -i "${PYPI_INDEX}"
+echo "Using PyTorch ${TORCH_VERSION}/${TORCHVISION_VERSION}/${TORCHAUDIO_VERSION} from ${PYTORCH_INDEX}"
+
 conda run -n "${ENV_NAME}" python -m pip install \
-  torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+  --upgrade pip \
+  --no-cache-dir \
+  --retries "${PIP_RETRIES}" \
+  --timeout "${PIP_TIMEOUT}" \
+  -i "${PYPI_INDEX}"
+
+conda run -n "${ENV_NAME}" python -m pip install \
+  --force-reinstall \
+  --no-cache-dir \
+  --retries "${PIP_RETRIES}" \
+  --timeout "${PIP_TIMEOUT}" \
+  "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" "torchaudio==${TORCHAUDIO_VERSION}" \
   --index-url "${PYTORCH_INDEX}"
-conda run -n "${ENV_NAME}" python -m pip install -r requirements.txt -i "${PYPI_INDEX}"
+
+conda run -n "${ENV_NAME}" python -m pip install \
+  --no-cache-dir \
+  --retries "${PIP_RETRIES}" \
+  --timeout "${PIP_TIMEOUT}" \
+  -r requirements.txt \
+  -i "${PYPI_INDEX}"
+
+# Repair common interrupted-download states. On headless servers we want the
+# headless OpenCV wheel to be the last cv2 provider installed.
+conda run -n "${ENV_NAME}" python -m pip uninstall -y opencv-python opencv-python-headless || true
+conda run -n "${ENV_NAME}" python -m pip install \
+  --force-reinstall \
+  --no-cache-dir \
+  --retries "${PIP_RETRIES}" \
+  --timeout "${PIP_TIMEOUT}" \
+  opencv-python-headless==4.10.0.84 \
+  -i "${PYPI_INDEX}"
+
 conda run -n "${ENV_NAME}" python scripts/verify_env.py --require-cuda

@@ -9,6 +9,7 @@ runs/
 outputs/
 checkpoints/
 weights/
+*.log
 
 # Model artifacts
 *.pt
