@@ -1,0 +1,19 @@
+task: task2
+model: yolov8n
+init: pretrained
+loss: yolo
+lr: default
+epochs: 120
+seed: 42
+data: data/road_vehicle/data.yaml
+weights: yolov8n.pt
+imgsz: 640
+batch: 16
+device: 0
+workers: 4
+project: runs/task2
+name: road_vehicle_yolov8n
+amp: false
+plots: false
+swanlab:
+  group: task2

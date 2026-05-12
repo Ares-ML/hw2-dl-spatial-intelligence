@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from src.common.logger import SwanLabLogger, get_git_commit, setup_logging
+from src.common.swanlab_logger import finish, format_run_name, init_run, log_metrics, metric_name
 
 
 class LoggerTest(unittest.TestCase):
@@ -39,6 +40,17 @@ class LoggerTest(unittest.TestCase):
         logger.update_config({"seed": 42})
         logger.finish()
         self.assertFalse(logger.enabled)
+
+    def test_swanlab_function_wrapper_disabled_is_noop(self) -> None:
+        run_name = format_run_name(
+            {"model": "resnet18", "init": "pretrained", "loss": "ce", "lr": 1e-4, "epochs": 50, "seed": 42}
+        )
+        self.assertEqual(run_name, "resnet18_pretrained_ce_lr1e-4_e50_s42")
+        self.assertEqual(metric_name("task1", "train_loss"), "task1/train_loss")
+        run = init_run(task="task1", run_name=run_name, mode="disabled")
+        log_metrics({"train_loss": 1.0}, step=1, task="task1")
+        self.assertFalse(run.enabled)
+        self.assertFalse(finish().enabled)
 
 
 if __name__ == "__main__":

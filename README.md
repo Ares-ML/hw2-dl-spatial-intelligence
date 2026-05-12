@@ -84,6 +84,22 @@ bash scripts/debug_cuda_server.sh 2>&1 | tee debug_cuda_server.log
 
 The local development machine does not need to download CUDA wheels if it has no NVIDIA GPU.
 
+## SwanLab
+
+The Day 1 SwanLab milestone uses one project under the `Ares-ML` workspace:
+`hw2-dl-spatial-intelligence`. Runs are grouped as `task1`, `task2`, and
+`task3`, and metrics use the `taskN/<metric_name>` convention.
+
+Create the three 1-epoch smoke runs on the GPU server after `swanlab login`:
+
+```bash
+bash scripts/run_swanlab_smoke_server.sh hw2 2>&1 | tee run_swanlab_smoke_server.log
+```
+
+The runner writes the project and experiment URLs to:
+
+- `logs/swanlab/swanlab_links.md`
+
 ## Notes
 
 Large datasets, logs, and model weights are not stored in this repository.

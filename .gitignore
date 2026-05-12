@@ -28,7 +28,11 @@ logs/smoke/*
 !logs/smoke/t1_resnet18_smoke.log
 !logs/smoke/t2_yolov8n_smoke.log
 !logs/smoke/t3_unet_smoke.log
+!logs/swanlab/
+logs/swanlab/*
+!logs/swanlab/swanlab_links.md
 .cuda_driver_shim/
+swanlog/
 
 # Model artifacts
 *.pt

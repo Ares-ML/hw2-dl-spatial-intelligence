@@ -1,0 +1,11 @@
+workspace: Ares-ML
+project: hw2-dl-spatial-intelligence
+groups:
+  task1: task1
+  task2: task2
+  task3: task3
+metric_prefixes:
+  task1: task1
+  task2: task2
+  task3: task3
+run_name_format: "{model}_{init}_{loss}_{lr}_{epoch}_{seed}"
