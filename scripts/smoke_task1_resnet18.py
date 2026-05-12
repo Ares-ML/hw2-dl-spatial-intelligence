@@ -56,7 +56,11 @@ def setup_logger(path: Path) -> logging.Logger:
 
 def choose_device(requested: str) -> torch.device:
     if requested.startswith("cuda") and not torch.cuda.is_available():
-        raise RuntimeError("CUDA was requested but torch.cuda.is_available() is false.")
+        raise RuntimeError(
+            "CUDA was requested but torch.cuda.is_available() is false. "
+            "On the course GPU server, run this through scripts/run_smoke_server.sh "
+            "or source scripts/cuda_driver_shim.sh and call prepare_cuda_driver_shim first."
+        )
     return torch.device(requested)
 
 

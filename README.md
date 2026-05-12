@@ -36,6 +36,22 @@ To verify an existing server environment without reinstalling packages:
 bash scripts/verify_env_server.sh
 ```
 
+## Smoke tests
+
+Run smoke tests on the GPU server through the CUDA driver shim wrapper. This is
+important on the course server: running the Python scripts with plain
+`conda run` can trigger CUDA error 804 because the real host NVIDIA driver is
+not placed first on `LD_LIBRARY_PATH`.
+
+```bash
+bash scripts/run_smoke_server.sh hw2
+```
+
+The wrapper first verifies CUDA, then writes:
+
+- `logs/smoke/t1_resnet18_smoke.log`
+- `logs/smoke/t2_yolov8n_smoke.log`
+
 If CUDA is still unavailable while `nvidia-smi` works, collect diagnostics:
 
 ```bash
