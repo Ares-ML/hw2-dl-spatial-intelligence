@@ -1,0 +1,14 @@
+task: task1
+model: resnet18
+init: random
+loss: ce
+lr: 1.0e-4
+epochs: 50
+seed: 42
+batch_size: 32
+num_workers: 4
+data_root: data/flower102
+image_size: 224
+num_classes: 102
+swanlab:
+  group: task1

@@ -8,23 +8,22 @@ import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-import numpy as np
 import torch
-from PIL import Image
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.task3_seg.datasets import CLASS_NAMES, IGNORE_INDEX, StanfordSegmentationDataset
+from src.task3_seg.transforms import build_segmentation_transform
 from src.task3_seg.unet import UNet
 
 
 DEFAULT_DATA_ROOT = REPO_ROOT / "data" / "stanford_background"
 DEFAULT_LOG_FILE = REPO_ROOT / "logs" / "smoke" / "t3_unet_smoke.log"
-CLASS_COUNT = 8
-IGNORE_INDEX = 255
+CLASS_COUNT = len(CLASS_NAMES)
 ALLOWED_MASK_VALUES = set(range(CLASS_COUNT)) | {IGNORE_INDEX}
 
 
@@ -52,42 +51,6 @@ def choose_device(requested: str) -> torch.device:
             "or source scripts/cuda_driver_shim.sh first."
         )
     return torch.device(requested)
-
-
-class StanfordSegmentationDataset(Dataset):
-    def __init__(self, root: Path, split: str, image_size: int, ignore_index: int) -> None:
-        self.root = root
-        self.image_dir = root / "iccv09Data" / "images"
-        self.mask_dir = root / "masks"
-        split_path = root / "splits" / f"{split}.txt"
-        if not split_path.is_file():
-            raise FileNotFoundError(f"Missing split file: {split_path}")
-        self.ids = [line.strip() for line in split_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        if not self.ids:
-            raise RuntimeError(f"No sample ids found in {split_path}")
-        self.image_size = image_size
-        self.ignore_index = ignore_index
-
-    def __len__(self) -> int:
-        return len(self.ids)
-
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
-        sample_id = self.ids[index]
-        image_path = self.image_dir / f"{sample_id}.jpg"
-        mask_path = self.mask_dir / f"{sample_id}.png"
-        if not image_path.is_file() or not mask_path.is_file():
-            raise FileNotFoundError(f"Missing image or mask for sample id {sample_id}")
-
-        with Image.open(image_path) as image:
-            image = image.convert("RGB").resize((self.image_size, self.image_size), Image.Resampling.BILINEAR)
-            image_array = np.asarray(image, dtype=np.float32) / 255.0
-        with Image.open(mask_path) as mask:
-            mask = mask.resize((self.image_size, self.image_size), Image.Resampling.NEAREST)
-            mask_array = np.asarray(mask, dtype=np.int64)
-
-        image_tensor = torch.from_numpy(image_array).permute(2, 0, 1)
-        mask_tensor = torch.from_numpy(mask_array)
-        return image_tensor, mask_tensor
 
 
 def validate_mask_values(mask: torch.Tensor, allowed_values: set[int]) -> list[int]:
@@ -132,7 +95,8 @@ def main() -> int:
             with redirect_stdout(log), redirect_stderr(log):
                 torch.manual_seed(42)
                 device = choose_device(args.device)
-                dataset = StanfordSegmentationDataset(args.data_root, args.split, args.image_size, args.ignore_index)
+                transform = build_segmentation_transform(args.image_size, train=False)
+                dataset = StanfordSegmentationDataset(args.data_root, args.split, transform=transform)
                 loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
                 images, masks = next(iter(loader))
                 observed_mask_values = validate_mask_values(masks, set(range(args.num_classes)) | {args.ignore_index})

@@ -7,17 +7,17 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
 import yaml
-from PIL import Image
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from src.common.logger import setup_logging
 from src.common.metrics import mean_iou, pixel_accuracy
 from src.common.seed import make_generator, seed_worker, set_seed
 from src.common.swanlab_logger import finish, format_run_name, init_run, log_metrics
+from src.task3_seg.datasets import IGNORE_INDEX, StanfordSegmentationDataset
+from src.task3_seg.transforms import build_segmentation_transform
 from src.task3_seg.unet import UNet
 
 
@@ -62,29 +62,6 @@ def append_link(path: Path | None, task: str, run_name: str, project_url: str, e
         file.write(f"| {task} | {run_name} | {project_url} | {experiment_url} |\n")
 
 
-class StanfordSegmentationDataset(Dataset):
-    def __init__(self, root: Path, split: str, image_size: int) -> None:
-        self.root = root
-        self.image_dir = root / "iccv09Data" / "images"
-        self.mask_dir = root / "masks"
-        split_path = root / "splits" / f"{split}.txt"
-        self.ids = [line.strip() for line in split_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        self.image_size = image_size
-
-    def __len__(self) -> int:
-        return len(self.ids)
-
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
-        sample_id = self.ids[index]
-        with Image.open(self.image_dir / f"{sample_id}.jpg") as image:
-            image = image.convert("RGB").resize((self.image_size, self.image_size), Image.Resampling.BILINEAR)
-            image_arr = np.asarray(image, dtype=np.float32) / 255.0
-        with Image.open(self.mask_dir / f"{sample_id}.png") as mask:
-            mask = mask.resize((self.image_size, self.image_size), Image.Resampling.NEAREST)
-            mask_arr = np.asarray(mask, dtype=np.int64)
-        return torch.from_numpy(image_arr).permute(2, 0, 1), torch.from_numpy(mask_arr)
-
-
 def iter_limit(loader: DataLoader, limit: int | None):
     for index, batch in enumerate(loader):
         if limit is not None and index >= limit:
@@ -105,13 +82,16 @@ def main() -> int:
     root = Path(cfg.get("data_root", "data/stanford_background"))
     image_size = int(cfg.get("image_size", 256))
     batch_size = int(cfg.get("batch_size", 4))
-    train_set = StanfordSegmentationDataset(root, "train", image_size)
-    val_set = StanfordSegmentationDataset(root, "val", image_size)
+    horizontal_flip_prob = float(cfg.get("horizontal_flip_prob", cfg.get("hflip_prob", 0.5)))
+    train_transform = build_segmentation_transform(image_size, train=True, horizontal_flip_prob=horizontal_flip_prob)
+    val_transform = build_segmentation_transform(image_size, train=False)
+    train_set = StanfordSegmentationDataset(root, "train", transform=train_transform)
+    val_set = StanfordSegmentationDataset(root, "val", transform=val_transform)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=int(cfg.get("num_workers", 4)), generator=make_generator(seed), worker_init_fn=seed_worker)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=int(cfg.get("num_workers", 4)))
 
     num_classes = int(cfg.get("num_classes", 8))
-    ignore_index = int(cfg.get("ignore_index", 255))
+    ignore_index = int(cfg.get("ignore_index", IGNORE_INDEX))
     base_channels = int(cfg.get("base_channels", 32))
     bilinear = bool(cfg.get("bilinear", False))
     model = UNet(num_classes=num_classes, base_channels=base_channels, bilinear=bilinear).to(device)
