@@ -15,6 +15,7 @@ from torchvision.datasets import Flowers102
 from torchvision.models import ResNet18_Weights, resnet18
 from torchvision.transforms import v2
 
+from src.common.checkpoint import CheckpointManager
 from src.common.logger import setup_logging
 from src.common.metrics import topk_accuracy
 from src.common.seed import make_generator, seed_worker, set_seed
@@ -38,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--require-swanlab", action="store_true")
     parser.add_argument("--links-file", type=Path, default=None)
     parser.add_argument("--log-file", type=Path, default=REPO_ROOT / "logs" / "swanlab" / "task1_train.log")
+    parser.add_argument("--checkpoint-dir", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -104,6 +106,11 @@ def main() -> int:
 
     run_values = {**cfg, "epochs": epochs, "seed": seed, "lr": lr}
     run_name = format_run_name(run_values)
+    checkpoint_dir = args.checkpoint_dir or (
+        REPO_ROOT / "checkpoints" / "task1" / f"{cfg.get('model', 'resnet18')}_{cfg.get('init', 'pretrained')}"
+    )
+    checkpoint_manager = CheckpointManager(checkpoint_dir, monitor="val_acc", mode="max")
+    logger.info("checkpoint_dir=%s", checkpoint_dir)
     run = init_run(task="task1", run_name=run_name, config=run_values, mode=args.swanlab_mode, tags=["day1", "smoke", "classification"])
     if args.require_swanlab and not run.enabled:
         raise RuntimeError(f"SwanLab cloud run was required but initialization failed: {run.error or 'no error captured'}")
@@ -149,6 +156,21 @@ def main() -> int:
         }
         logger.info("epoch=%s metrics=%s", epoch, metrics)
         log_metrics(metrics, step=epoch, task="task1")
+        checkpoint_result = checkpoint_manager.save(
+            model=model,
+            optimizer=optimizer,
+            epoch=epoch,
+            metrics=metrics,
+            config=run_values,
+            extra={"global_step": global_step, "run_name": run_name},
+        )
+        logger.info(
+            "epoch=%s checkpoint last=%s best=%s is_best=%s",
+            epoch,
+            checkpoint_result["last"],
+            checkpoint_result["best"],
+            checkpoint_result["is_best"],
+        )
 
     run = finish()
     append_link(args.links_file, "task1", run_name, run.project_url, run.experiment_url)

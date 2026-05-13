@@ -1,9 +1,10 @@
-"""Smoke test a handwritten U-Net forward pass on Stanford Background."""
+"""Smoke test the shared Task 3 U-Net forward pass on Stanford Background."""
 
 from __future__ import annotations
 
 import argparse
 import math
+import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -13,8 +14,13 @@ from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.task3_seg.unet import UNet
+
+
 DEFAULT_DATA_ROOT = REPO_ROOT / "data" / "stanford_background"
 DEFAULT_LOG_FILE = REPO_ROOT / "logs" / "smoke" / "t3_unet_smoke.log"
 CLASS_COUNT = 8
@@ -29,6 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=2, help="Single smoke-test batch size.")
     parser.add_argument("--image-size", type=int, default=256, help="Square resize for image and mask.")
     parser.add_argument("--num-classes", type=int, default=CLASS_COUNT, help="Semantic class count.")
+    parser.add_argument("--base-channels", type=int, default=32, help="U-Net base channel width.")
     parser.add_argument("--ignore-index", type=int, default=IGNORE_INDEX, help="Mask ignore index.")
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu", "auto"], help="Smoke-test device.")
     parser.add_argument("--log-file", type=Path, default=DEFAULT_LOG_FILE, help="Smoke-test log path.")
@@ -83,96 +90,26 @@ class StanfordSegmentationDataset(Dataset):
         return image_tensor, mask_tensor
 
 
-class DoubleConv(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int) -> None:
-        super().__init__()
-        self.block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.block(x)
-
-
-class SmallUNet(nn.Module):
-    def __init__(self, num_classes: int) -> None:
-        super().__init__()
-        self.enc1 = DoubleConv(3, 16)
-        self.enc2 = DoubleConv(16, 32)
-        self.enc3 = DoubleConv(32, 64)
-        self.pool = nn.MaxPool2d(2)
-        self.bottleneck = DoubleConv(64, 128)
-        self.up3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.dec3 = DoubleConv(128, 64)
-        self.up2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        self.dec2 = DoubleConv(64, 32)
-        self.up1 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)
-        self.dec1 = DoubleConv(32, 16)
-        self.classifier = nn.Conv2d(16, num_classes, kernel_size=1)
-        self.shape_flow: list[tuple[str, list[int]]] = []
-
-    def record(self, name: str, tensor: torch.Tensor) -> None:
-        self.shape_flow.append((name, list(tensor.shape)))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        self.shape_flow = []
-        self.record("input", x)
-
-        enc1 = self.enc1(x)
-        self.record("enc1", enc1)
-        pool1 = self.pool(enc1)
-        self.record("pool1", pool1)
-
-        enc2 = self.enc2(pool1)
-        self.record("enc2", enc2)
-        pool2 = self.pool(enc2)
-        self.record("pool2", pool2)
-
-        enc3 = self.enc3(pool2)
-        self.record("enc3", enc3)
-        pool3 = self.pool(enc3)
-        self.record("pool3", pool3)
-
-        bottleneck = self.bottleneck(pool3)
-        self.record("bottleneck", bottleneck)
-
-        up3 = self.up3(bottleneck)
-        self.record("up3", up3)
-        cat3 = torch.cat([up3, enc3], dim=1)
-        self.record("cat3", cat3)
-        dec3 = self.dec3(cat3)
-        self.record("dec3", dec3)
-
-        up2 = self.up2(dec3)
-        self.record("up2", up2)
-        cat2 = torch.cat([up2, enc2], dim=1)
-        self.record("cat2", cat2)
-        dec2 = self.dec2(cat2)
-        self.record("dec2", dec2)
-
-        up1 = self.up1(dec2)
-        self.record("up1", up1)
-        cat1 = torch.cat([up1, enc1], dim=1)
-        self.record("cat1", cat1)
-        dec1 = self.dec1(cat1)
-        self.record("dec1", dec1)
-
-        logits = self.classifier(dec1)
-        self.record("logits", logits)
-        return logits
-
-
 def validate_mask_values(mask: torch.Tensor, allowed_values: set[int]) -> list[int]:
     values = sorted(int(value) for value in torch.unique(mask).cpu().tolist())
     unexpected = [value for value in values if value not in allowed_values]
     if unexpected:
         raise RuntimeError(f"Unexpected mask values: {unexpected}; observed={values}")
     return values
+
+
+def attach_shape_hooks(model: UNet, shape_flow: list[tuple[str, list[int]]]) -> list[torch.utils.hooks.RemovableHandle]:
+    handles: list[torch.utils.hooks.RemovableHandle] = []
+
+    def make_hook(name: str):
+        def hook(_module: nn.Module, _inputs: tuple[torch.Tensor, ...], output: torch.Tensor) -> None:
+            shape_flow.append((name, list(output.shape)))
+
+        return hook
+
+    for name in ("inc", "down1", "down2", "down3", "down4", "up1", "up2", "up3", "up4", "outc"):
+        handles.append(getattr(model, name).register_forward_hook(make_hook(name)))
+    return handles
 
 
 def main() -> int:
@@ -187,6 +124,7 @@ def main() -> int:
         log.write(f"batch_size={args.batch_size}\n")
         log.write(f"image_size={args.image_size}\n")
         log.write(f"num_classes={args.num_classes}\n")
+        log.write(f"base_channels={args.base_channels}\n")
         log.write(f"ignore_index={args.ignore_index}\n")
         log.flush()
 
@@ -199,14 +137,20 @@ def main() -> int:
                 images, masks = next(iter(loader))
                 observed_mask_values = validate_mask_values(masks, set(range(args.num_classes)) | {args.ignore_index})
 
-                model = SmallUNet(args.num_classes).to(device)
+                model = UNet(num_classes=args.num_classes, base_channels=args.base_channels).to(device)
                 criterion = nn.CrossEntropyLoss(ignore_index=args.ignore_index)
+                shape_flow: list[tuple[str, list[int]]] = [("input", list(images.shape))]
+                hooks = attach_shape_hooks(model, shape_flow)
 
                 images = images.to(device)
                 masks = masks.to(device)
-                with torch.no_grad():
-                    logits = model(images)
-                    loss = criterion(logits, masks)
+                try:
+                    with torch.no_grad():
+                        logits = model(images)
+                        loss = criterion(logits, masks)
+                finally:
+                    for hook in hooks:
+                        hook.remove()
 
                 expected_logits_shape = [args.batch_size, args.num_classes, args.image_size, args.image_size]
                 if list(logits.shape) != expected_logits_shape:
@@ -222,7 +166,7 @@ def main() -> int:
                 log.write(f"logits_shape={list(logits.shape)}\n")
                 log.write(f"loss={loss.item():.8f}\n")
                 log.write("shape_flow:\n")
-                for name, shape in model.shape_flow:
+                for name, shape in shape_flow:
                     log.write(f"- {name}: {shape}\n")
                 log.write("PASS unet_forward_shape_and_loss\n")
         except Exception as exc:

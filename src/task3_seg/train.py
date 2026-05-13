@@ -18,6 +18,7 @@ from src.common.logger import setup_logging
 from src.common.metrics import mean_iou, pixel_accuracy
 from src.common.seed import make_generator, seed_worker, set_seed
 from src.common.swanlab_logger import finish, format_run_name, init_run, log_metrics
+from src.task3_seg.unet import UNet
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -84,49 +85,6 @@ class StanfordSegmentationDataset(Dataset):
         return torch.from_numpy(image_arr).permute(2, 0, 1), torch.from_numpy(mask_arr)
 
 
-class DoubleConv(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int) -> None:
-        super().__init__()
-        self.block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, 3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.block(x)
-
-
-class UNet(nn.Module):
-    def __init__(self, num_classes: int) -> None:
-        super().__init__()
-        self.enc1 = DoubleConv(3, 32)
-        self.enc2 = DoubleConv(32, 64)
-        self.enc3 = DoubleConv(64, 128)
-        self.pool = nn.MaxPool2d(2)
-        self.bottleneck = DoubleConv(128, 256)
-        self.up3 = nn.ConvTranspose2d(256, 128, 2, stride=2)
-        self.dec3 = DoubleConv(256, 128)
-        self.up2 = nn.ConvTranspose2d(128, 64, 2, stride=2)
-        self.dec2 = DoubleConv(128, 64)
-        self.up1 = nn.ConvTranspose2d(64, 32, 2, stride=2)
-        self.dec1 = DoubleConv(64, 32)
-        self.out = nn.Conv2d(32, num_classes, 1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        enc1 = self.enc1(x)
-        enc2 = self.enc2(self.pool(enc1))
-        enc3 = self.enc3(self.pool(enc2))
-        bottleneck = self.bottleneck(self.pool(enc3))
-        dec3 = self.dec3(torch.cat([self.up3(bottleneck), enc3], dim=1))
-        dec2 = self.dec2(torch.cat([self.up2(dec3), enc2], dim=1))
-        dec1 = self.dec1(torch.cat([self.up1(dec2), enc1], dim=1))
-        return self.out(dec1)
-
-
 def iter_limit(loader: DataLoader, limit: int | None):
     for index, batch in enumerate(loader):
         if limit is not None and index >= limit:
@@ -154,7 +112,9 @@ def main() -> int:
 
     num_classes = int(cfg.get("num_classes", 8))
     ignore_index = int(cfg.get("ignore_index", 255))
-    model = UNet(num_classes).to(device)
+    base_channels = int(cfg.get("base_channels", 32))
+    bilinear = bool(cfg.get("bilinear", False))
+    model = UNet(num_classes=num_classes, base_channels=base_channels, bilinear=bilinear).to(device)
     criterion = nn.CrossEntropyLoss(ignore_index=ignore_index)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
