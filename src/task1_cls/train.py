@@ -35,6 +35,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-val-batches", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--lr", type=float, default=None)
+    parser.add_argument("--lr-backbone", type=float, default=None)
+    parser.add_argument("--lr-head", type=float, default=None)
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu", "auto"])
     parser.add_argument("--swanlab-mode", default="disabled", choices=["cloud", "offline", "local", "disabled"])
     parser.add_argument("--require-swanlab", action="store_true")
@@ -72,12 +74,59 @@ def append_link(path: Path | None, task: str, run_name: str, project_url: str, e
         file.write(f"| {task} | {run_name} | {project_url} | {experiment_url} |\n")
 
 
+def swanlab_tags(cfg: dict[str, Any], default: list[str]) -> list[str]:
+    swan_cfg = cfg.get("swanlab")
+    tags = swan_cfg.get("tags") if isinstance(swan_cfg, dict) else None
+    tags = tags or cfg.get("tags")
+    if tags is None:
+        return default
+    if isinstance(tags, str):
+        return [tags]
+    return [str(tag) for tag in tags]
+
+
+def resolve_learning_rates(cfg: dict[str, Any], args: argparse.Namespace) -> tuple[float, float | None, float | None, str | float]:
+    lr = args.lr if args.lr is not None else float(cfg.get("lr", 1e-4))
+    cfg_lr_backbone = cfg.get("lr_backbone")
+    cfg_lr_head = cfg.get("lr_head")
+    lr_backbone = args.lr_backbone if args.lr_backbone is not None else (
+        float(cfg_lr_backbone) if cfg_lr_backbone is not None else None
+    )
+    lr_head = args.lr_head if args.lr_head is not None else (float(cfg_lr_head) if cfg_lr_head is not None else None)
+    if lr_backbone is None and lr_head is None:
+        return lr, None, None, lr
+    lr_backbone = lr if lr_backbone is None else lr_backbone
+    lr_head = lr if lr_head is None else lr_head
+    return lr, lr_backbone, lr_head, f"bb{lr_backbone:.0e}_head{lr_head:.0e}"
+
+
+def build_optimizer(model: nn.Module, lr: float, lr_backbone: float | None, lr_head: float | None) -> torch.optim.Optimizer:
+    if lr_backbone is None or lr_head is None:
+        return torch.optim.AdamW(model.parameters(), lr=lr)
+
+    backbone_params = []
+    head_params = []
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            continue
+        if name.startswith("fc."):
+            head_params.append(parameter)
+        else:
+            backbone_params.append(parameter)
+    return torch.optim.AdamW(
+        [
+            {"params": backbone_params, "lr": lr_backbone, "name": "backbone"},
+            {"params": head_params, "lr": lr_head, "name": "head"},
+        ]
+    )
+
+
 def main() -> int:
     args = parse_args()
     cfg = load_config(args.config)
     epochs = args.epochs or int(cfg.get("epochs", 1))
     seed = args.seed if args.seed is not None else int(cfg.get("seed", 42))
-    lr = args.lr if args.lr is not None else float(cfg.get("lr", 1e-4))
+    lr, lr_backbone, lr_head, run_lr = resolve_learning_rates(cfg, args)
     batch_size = int(cfg.get("batch_size", 32))
     set_seed(seed)
     device = choose_device(args.device)
@@ -107,16 +156,26 @@ def main() -> int:
     )
     model.to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    optimizer = build_optimizer(model, lr, lr_backbone, lr_head)
 
-    run_values = {**cfg, "epochs": epochs, "seed": seed, "lr": lr}
+    run_values = {**cfg, "epochs": epochs, "seed": seed, "lr": run_lr}
+    if lr_backbone is not None and lr_head is not None:
+        run_values["lr_backbone"] = lr_backbone
+        run_values["lr_head"] = lr_head
     run_name = format_run_name(run_values)
     checkpoint_dir = args.checkpoint_dir or (
         REPO_ROOT / "checkpoints" / "task1" / f"{cfg.get('model', 'resnet18')}_{cfg.get('init', 'pretrained')}"
     )
     checkpoint_manager = CheckpointManager(checkpoint_dir, monitor="val_acc", mode="max")
     logger.info("checkpoint_dir=%s", checkpoint_dir)
-    run = init_run(task="task1", run_name=run_name, config=run_values, mode=args.swanlab_mode, tags=["day1", "smoke", "classification"])
+    logger.info("optimizer_lrs=%s", [{"name": group.get("name", "all"), "lr": group["lr"]} for group in optimizer.param_groups])
+    run = init_run(
+        task="task1",
+        run_name=run_name,
+        config=run_values,
+        mode=args.swanlab_mode,
+        tags=swanlab_tags(cfg, ["classification"]),
+    )
     if args.require_swanlab and not run.enabled:
         raise RuntimeError(f"SwanLab cloud run was required but initialization failed: {run.error or 'no error captured'}")
 
@@ -159,6 +218,11 @@ def main() -> int:
             "val_loss": val_loss / max(val_batches, 1),
             "val_acc": val_acc / max(val_batches, 1),
         }
+        if lr_backbone is not None and lr_head is not None:
+            metrics["lr_backbone"] = lr_backbone
+            metrics["lr_head"] = lr_head
+        else:
+            metrics["lr"] = lr
         logger.info("epoch=%s metrics=%s", epoch, metrics)
         log_metrics(metrics, step=epoch, task="task1")
         checkpoint_result = checkpoint_manager.save(

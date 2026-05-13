@@ -4,6 +4,7 @@ init: pretrained
 loss: yolo
 lr: default
 epochs: 120
+patience: 30
 seed: 42
 data: data/road_vehicle/data.yaml
 weights: yolov8n.pt
@@ -12,8 +13,12 @@ batch: 16
 device: 0
 workers: 4
 project: runs/task2
-name: road_vehicle_yolov8n
+name: road_vehicle_yolov8n_e120
 amp: false
-plots: false
+plots: true
 swanlab:
   group: task2
+  tags:
+    - day2
+    - main
+    - detection

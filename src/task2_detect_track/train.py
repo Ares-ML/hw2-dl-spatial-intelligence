@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-batches", type=int, default=None, help="Accepted for a shared smoke CLI; not used by Ultralytics.")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--lr", default=None)
+    parser.add_argument("--patience", type=int, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--swanlab-mode", default="disabled", choices=["cloud", "offline", "local", "disabled"])
     parser.add_argument("--require-swanlab", action="store_true")
@@ -76,18 +77,36 @@ def map_yolo_metrics(row: dict[str, float | str]) -> dict[str, float]:
     return metrics
 
 
+def swanlab_tags(cfg: dict[str, Any], default: list[str]) -> list[str]:
+    swan_cfg = cfg.get("swanlab")
+    tags = swan_cfg.get("tags") if isinstance(swan_cfg, dict) else None
+    tags = tags or cfg.get("tags")
+    if tags is None:
+        return default
+    if isinstance(tags, str):
+        return [tags]
+    return [str(tag) for tag in tags]
+
+
 def main() -> int:
     args = parse_args()
     cfg = load_config(args.config)
     epochs = args.epochs or int(cfg.get("epochs", 1))
     seed = args.seed if args.seed is not None else int(cfg.get("seed", 42))
     lr_value = args.lr if args.lr is not None else cfg.get("lr", "default")
+    patience = args.patience if args.patience is not None else int(cfg.get("patience", 100))
     set_seed(seed)
     logger = setup_logging("hw2.task2", args.log_file, level=logging.INFO, file_mode="w")
 
-    run_values = {**cfg, "epochs": epochs, "seed": seed, "lr": lr_value}
+    run_values = {**cfg, "epochs": epochs, "seed": seed, "lr": lr_value, "patience": patience}
     run_name = format_run_name(run_values)
-    run = init_run(task="task2", run_name=run_name, config=run_values, mode=args.swanlab_mode, tags=["day1", "smoke", "detection"])
+    run = init_run(
+        task="task2",
+        run_name=run_name,
+        config=run_values,
+        mode=args.swanlab_mode,
+        tags=swanlab_tags(cfg, ["detection"]),
+    )
     if args.require_swanlab and not run.enabled:
         raise RuntimeError(f"SwanLab cloud run was required but initialization failed: {run.error or 'no error captured'}")
 
@@ -107,6 +126,7 @@ def main() -> int:
         workers=int(cfg.get("workers", 4)),
         exist_ok=True,
         seed=seed,
+        patience=patience,
         amp=bool(cfg.get("amp", False)),
         plots=bool(cfg.get("plots", False)),
     )

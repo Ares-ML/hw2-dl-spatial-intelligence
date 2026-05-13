@@ -1,0 +1,52 @@
+description: Task 1 ResNet-18 pretrained backbone/head learning-rate grid.
+base:
+  task: task1
+  model: resnet18
+  init: pretrained
+  loss: ce
+  lr: 1.0e-4
+  seed: 42
+  batch_size: 32
+  num_workers: 4
+  data_root: data/flower102
+  image_size: 224
+  num_classes: 102
+  swanlab:
+    group: task1
+    tags:
+      - day2
+      - grid
+      - classification
+experiments:
+  - id: bb1e-5_head1e-3_e50
+    lr_backbone: 1.0e-5
+    lr_head: 1.0e-3
+    epochs: 50
+  - id: bb1e-5_head5e-4_e50
+    lr_backbone: 1.0e-5
+    lr_head: 5.0e-4
+    epochs: 50
+  - id: bb1e-4_head1e-3_e50
+    lr_backbone: 1.0e-4
+    lr_head: 1.0e-3
+    epochs: 50
+  - id: bb1e-4_head5e-4_e50
+    lr_backbone: 1.0e-4
+    lr_head: 5.0e-4
+    epochs: 50
+  - id: bb1e-5_head1e-3_e100
+    lr_backbone: 1.0e-5
+    lr_head: 1.0e-3
+    epochs: 100
+  - id: bb1e-5_head5e-4_e100
+    lr_backbone: 1.0e-5
+    lr_head: 5.0e-4
+    epochs: 100
+  - id: bb1e-4_head1e-3_e100
+    lr_backbone: 1.0e-4
+    lr_head: 1.0e-3
+    epochs: 100
+  - id: bb1e-4_head5e-4_e100
+    lr_backbone: 1.0e-4
+    lr_head: 5.0e-4
+    epochs: 100
