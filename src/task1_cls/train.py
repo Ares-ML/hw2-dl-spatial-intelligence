@@ -9,6 +9,7 @@ from typing import Any
 
 import torch
 import yaml
+from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.datasets import Flowers102
 from torchvision.models import ResNet18_Weights
