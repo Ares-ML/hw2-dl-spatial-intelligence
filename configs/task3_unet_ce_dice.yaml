@@ -1,0 +1,20 @@
+task: task3
+model: unet
+init: random
+loss: ce_dice
+lr: 1.0e-3
+epochs: 100
+seed: 42
+batch_size: 4
+num_workers: 4
+data_root: data/stanford_background
+image_size: 256
+hflip_prob: 0.5
+num_classes: 8
+base_channels: 32
+bilinear: false
+ignore_index: 255
+dice_weight: 1.0
+dice_smooth: 1.0
+swanlab:
+  group: task3

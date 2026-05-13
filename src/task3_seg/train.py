@@ -9,7 +9,6 @@ from typing import Any
 
 import torch
 import yaml
-from torch import nn
 from torch.utils.data import DataLoader
 
 from src.common.logger import setup_logging
@@ -17,6 +16,7 @@ from src.common.metrics import mean_iou, pixel_accuracy
 from src.common.seed import make_generator, seed_worker, set_seed
 from src.common.swanlab_logger import finish, format_run_name, init_run, log_metrics
 from src.task3_seg.datasets import IGNORE_INDEX, StanfordSegmentationDataset
+from src.task3_seg.losses import build_segmentation_loss
 from src.task3_seg.transforms import build_segmentation_transform
 from src.task3_seg.unet import UNet
 
@@ -95,7 +95,13 @@ def main() -> int:
     base_channels = int(cfg.get("base_channels", 32))
     bilinear = bool(cfg.get("bilinear", False))
     model = UNet(num_classes=num_classes, base_channels=base_channels, bilinear=bilinear).to(device)
-    criterion = nn.CrossEntropyLoss(ignore_index=ignore_index)
+    criterion = build_segmentation_loss(
+        str(cfg.get("loss", "ce")),
+        num_classes=num_classes,
+        ignore_index=ignore_index,
+        dice_weight=float(cfg.get("dice_weight", 1.0)),
+        smooth=float(cfg.get("dice_smooth", 1.0)),
+    )
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
     run_values = {**cfg, "epochs": epochs, "seed": seed, "lr": lr}

@@ -1,0 +1,17 @@
+task: task1
+model: resnet18_cbam
+init: pretrained
+attention: cbam
+loss: ce
+lr: 1.0e-4
+epochs: 50
+seed: 42
+batch_size: 32
+num_workers: 4
+data_root: data/flower102
+image_size: 224
+num_classes: 102
+cbam_reduction: 16
+cbam_spatial_kernel_size: 7
+swanlab:
+  group: task1

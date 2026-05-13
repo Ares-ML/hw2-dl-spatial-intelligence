@@ -9,10 +9,9 @@ from typing import Any
 
 import torch
 import yaml
-from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.datasets import Flowers102
-from torchvision.models import ResNet18_Weights, resnet18
+from torchvision.models import ResNet18_Weights
 from torchvision.transforms import v2
 
 from src.common.checkpoint import CheckpointManager
@@ -20,6 +19,7 @@ from src.common.logger import setup_logging
 from src.common.metrics import topk_accuracy
 from src.common.seed import make_generator, seed_worker, set_seed
 from src.common.swanlab_logger import finish, format_run_name, init_run, log_metrics
+from src.task1_cls.models import build_resnet18_classifier
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -82,7 +82,6 @@ def main() -> int:
     device = choose_device(args.device)
     logger = setup_logging("hw2.task1", args.log_file, level=logging.INFO, file_mode="w")
 
-    weights = ResNet18_Weights.DEFAULT if cfg.get("init", "pretrained") == "pretrained" else None
     norm = ResNet18_Weights.DEFAULT.transforms()
     transform = v2.Compose(
         [
@@ -98,8 +97,13 @@ def main() -> int:
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=int(cfg.get("num_workers", 4)), generator=make_generator(seed), worker_init_fn=seed_worker)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=int(cfg.get("num_workers", 4)))
 
-    model = resnet18(weights=weights)
-    model.fc = nn.Linear(model.fc.in_features, int(cfg.get("num_classes", 102)))
+    model = build_resnet18_classifier(
+        num_classes=int(cfg.get("num_classes", 102)),
+        init=str(cfg.get("init", "pretrained")),
+        attention=cfg.get("attention"),
+        cbam_reduction=int(cfg.get("cbam_reduction", 16)),
+        cbam_spatial_kernel_size=int(cfg.get("cbam_spatial_kernel_size", 7)),
+    )
     model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
