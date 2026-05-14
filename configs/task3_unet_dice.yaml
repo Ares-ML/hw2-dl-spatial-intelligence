@@ -17,3 +17,8 @@ ignore_index: 255
 dice_smooth: 1.0
 swanlab:
   group: task3
+  tags:
+    - day3
+    - main
+    - segmentation
+    - dice

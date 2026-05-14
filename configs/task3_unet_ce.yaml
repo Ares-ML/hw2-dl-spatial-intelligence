@@ -16,3 +16,8 @@ bilinear: false
 ignore_index: 255
 swanlab:
   group: task3
+  tags:
+    - day3
+    - main
+    - segmentation
+    - ce

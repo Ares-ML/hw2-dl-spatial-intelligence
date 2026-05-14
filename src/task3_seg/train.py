@@ -11,6 +11,7 @@ import torch
 import yaml
 from torch.utils.data import DataLoader
 
+from src.common.checkpoint import CheckpointManager
 from src.common.logger import setup_logging
 from src.common.metrics import mean_iou, pixel_accuracy
 from src.common.seed import make_generator, seed_worker, set_seed
@@ -30,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--max-batches", type=int, default=None)
-    parser.add_argument("--max-val-batches", type=int, default=2)
+    parser.add_argument("--max-val-batches", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu", "auto"])
@@ -38,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--require-swanlab", action="store_true")
     parser.add_argument("--links-file", type=Path, default=None)
     parser.add_argument("--log-file", type=Path, default=REPO_ROOT / "logs" / "swanlab" / "task3_train.log")
+    parser.add_argument("--checkpoint-dir", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -60,6 +62,17 @@ def append_link(path: Path | None, task: str, run_name: str, project_url: str, e
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as file:
         file.write(f"| {task} | {run_name} | {project_url} | {experiment_url} |\n")
+
+
+def swanlab_tags(cfg: dict[str, Any], default: list[str]) -> list[str]:
+    swan_cfg = cfg.get("swanlab")
+    tags = swan_cfg.get("tags") if isinstance(swan_cfg, dict) else None
+    tags = tags or cfg.get("tags")
+    if tags is None:
+        return default
+    if isinstance(tags, str):
+        return [tags]
+    return [str(tag) for tag in tags]
 
 
 def iter_limit(loader: DataLoader, limit: int | None):
@@ -106,7 +119,16 @@ def main() -> int:
 
     run_values = {**cfg, "epochs": epochs, "seed": seed, "lr": lr}
     run_name = format_run_name(run_values)
-    run = init_run(task="task3", run_name=run_name, config=run_values, mode=args.swanlab_mode, tags=["day1", "smoke", "segmentation"])
+    checkpoint_dir = args.checkpoint_dir or (REPO_ROOT / "checkpoints" / "task3" / f"unet_{cfg.get('loss', 'ce')}")
+    checkpoint_manager = CheckpointManager(checkpoint_dir, monitor="val_miou", mode="max")
+    logger.info("checkpoint_dir=%s", checkpoint_dir)
+    run = init_run(
+        task="task3",
+        run_name=run_name,
+        config=run_values,
+        mode=args.swanlab_mode,
+        tags=swanlab_tags(cfg, ["segmentation"]),
+    )
     if args.require_swanlab and not run.enabled:
         raise RuntimeError(f"SwanLab cloud run was required but initialization failed: {run.error or 'no error captured'}")
 
@@ -147,6 +169,21 @@ def main() -> int:
         }
         logger.info("epoch=%s metrics=%s", epoch, metrics)
         log_metrics(metrics, step=epoch, task="task3")
+        checkpoint_result = checkpoint_manager.save(
+            model=model,
+            optimizer=optimizer,
+            epoch=epoch,
+            metrics=metrics,
+            config=run_values,
+            extra={"run_name": run_name},
+        )
+        logger.info(
+            "epoch=%s checkpoint last=%s best=%s is_best=%s",
+            epoch,
+            checkpoint_result["last"],
+            checkpoint_result["best"],
+            checkpoint_result["is_best"],
+        )
 
     run = finish()
     append_link(args.links_file, "task3", run_name, run.project_url, run.experiment_url)
