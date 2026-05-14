@@ -32,50 +32,26 @@ EOF
 fi
 
 echo "== Preparing Task 1 grid configs from ${GRID_CONFIG} =="
-mapfile -t RUNS < <(
-  conda run -n "${ENV_NAME}" python - "${GRID_CONFIG}" "${CONFIG_DIR}" <<'PY'
-from __future__ import annotations
+RUN_LIST="${CONFIG_DIR}/runs.tsv"
+conda run -n "${ENV_NAME}" python scripts/expand_task1_grid.py \
+  --grid-config "${GRID_CONFIG}" \
+  --output-dir "${CONFIG_DIR}" \
+  > "${RUN_LIST}"
 
-import re
-import sys
-from pathlib import Path
-
-import yaml
-
-
-grid_path = Path(sys.argv[1])
-out_dir = Path(sys.argv[2])
-doc = yaml.safe_load(grid_path.read_text(encoding="utf-8")) or {}
-base = doc.get("base") or {}
-experiments = doc.get("experiments") or doc.get("grid") or []
-if not isinstance(base, dict) or not isinstance(experiments, list) or not experiments:
-    raise SystemExit(f"{grid_path} must contain a mapping 'base' and a non-empty list 'experiments'.")
-
-out_dir.mkdir(parents=True, exist_ok=True)
-for index, experiment in enumerate(experiments, start=1):
-    if not isinstance(experiment, dict):
-        raise SystemExit(f"experiment #{index} must be a mapping.")
-    run_id = str(experiment.get("id") or f"run_{index:02d}")
-    run_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", run_id).strip("._-")
-    if not run_id:
-        raise SystemExit(f"experiment #{index} has an empty id after sanitization.")
-    cfg = dict(base)
-    cfg.update({key: value for key, value in experiment.items() if key != "id"})
-    cfg["experiment_id"] = run_id
-    cfg["grid_config"] = str(grid_path)
-    swanlab_cfg = cfg.get("swanlab") if isinstance(cfg.get("swanlab"), dict) else {}
-    swanlab_cfg.setdefault("tags", ["day2", "grid", "classification"])
-    cfg["swanlab"] = swanlab_cfg
-    output_path = out_dir / f"{run_id}.yaml"
-    output_path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=False), encoding="utf-8")
-    print(f"{run_id}\t{output_path}")
-PY
-)
+mapfile -t RUNS < <(sed '/^[[:space:]]*$/d' "${RUN_LIST}")
 
 if [[ "${#RUNS[@]}" -eq 0 ]]; then
+  echo "grid_config=${GRID_CONFIG}" >&2
+  echo "config_dir=${CONFIG_DIR}" >&2
+  if [[ -f "${RUN_LIST}" ]]; then
+    echo "run_list=${RUN_LIST} exists but has no run rows." >&2
+  else
+    echo "run_list=${RUN_LIST} was not created." >&2
+  fi
   echo "ERROR: no Task 1 grid runs were generated." >&2
   exit 1
 fi
+echo "Generated ${#RUNS[@]} Task 1 grid run configs in ${CONFIG_DIR}."
 
 TOTAL_RUNS="${#RUNS[@]}"
 if [[ "${TASK1_GRID_MAX_RUNS}" -gt 0 && "${TASK1_GRID_MAX_RUNS}" -lt "${TOTAL_RUNS}" ]]; then
