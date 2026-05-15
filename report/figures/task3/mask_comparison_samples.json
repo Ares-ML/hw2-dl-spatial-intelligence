@@ -1,0 +1,91 @@
+{
+  "samples": [
+    {
+      "sample_id": "9001034",
+      "bucket": "best",
+      "scoring_variant": "ce",
+      "scoring_miou": 0.9165230325558856,
+      "per_variant_miou": {
+        "ce": 0.9165230325558856,
+        "dice": 0.8523637825350322,
+        "ce_dice": 0.7076308366908699
+      }
+    },
+    {
+      "sample_id": "0000382",
+      "bucket": "median",
+      "scoring_variant": "ce",
+      "scoring_miou": 0.48428341948555786,
+      "per_variant_miou": {
+        "ce": 0.48428341948555786,
+        "dice": 0.532815502694869,
+        "ce_dice": 0.4776957428634398
+      }
+    },
+    {
+      "sample_id": "0007323",
+      "bucket": "median",
+      "scoring_variant": "ce",
+      "scoring_miou": 0.48370140143730156,
+      "per_variant_miou": {
+        "ce": 0.48370140143730156,
+        "dice": 0.370503144560296,
+        "ce_dice": 0.5258210109064859
+      }
+    },
+    {
+      "sample_id": "9001071",
+      "bucket": "hard",
+      "scoring_variant": "ce",
+      "scoring_miou": 0.3666813338241363,
+      "per_variant_miou": {
+        "ce": 0.3666813338241363,
+        "dice": 0.32391929711853595,
+        "ce_dice": 0.4229359738197626
+      }
+    },
+    {
+      "sample_id": "6000186",
+      "bucket": "hard",
+      "scoring_variant": "ce",
+      "scoring_miou": 0.365023336819357,
+      "per_variant_miou": {
+        "ce": 0.365023336819357,
+        "dice": 0.3615917418219297,
+        "ce_dice": 0.4370810109928603
+      }
+    },
+    {
+      "sample_id": "3000716",
+      "bucket": "worst",
+      "scoring_variant": "ce",
+      "scoring_miou": 0.21313813221067135,
+      "per_variant_miou": {
+        "ce": 0.21313813221067135,
+        "dice": 0.3128609149328944,
+        "ce_dice": 0.34002001317202585
+      }
+    }
+  ],
+  "variants": [
+    "ce",
+    "dice",
+    "ce_dice"
+  ],
+  "scoring_variant": "ce",
+  "bucket_counts": {
+    "best": 1,
+    "median": 2,
+    "hard": 2,
+    "worst": 1
+  },
+  "image_size": 256,
+  "num_classes": 8,
+  "ignore_index": 255,
+  "val_samples": 143,
+  "environment": {
+    "device_requested": "0",
+    "device_resolved": "cuda:0",
+    "cuda_visible_devices": null
+  }
+}

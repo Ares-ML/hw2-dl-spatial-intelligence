@@ -1,0 +1,112 @@
+{
+  "variants": [
+    "ce",
+    "dice",
+    "ce_dice"
+  ],
+  "labels": {
+    "ce": "CE",
+    "dice": "Dice",
+    "ce_dice": "CE+Dice"
+  },
+  "results": {
+    "ce": {
+      "miou": 0.6252605090904322,
+      "class_iou": [
+        0.8763850806928624,
+        0.6484828043514071,
+        0.7782941127592061,
+        0.6475435203094777,
+        0.609854215615871,
+        0.7040264007015571,
+        0.1887407331575939,
+        0.5487572051354813
+      ],
+      "valid_classes": 8,
+      "pixel_acc": 0.8192010713578661,
+      "best_epoch": 98,
+      "best_score": 0.6252623124120138,
+      "checkpoint_metrics": {
+        "train_loss": 0.25121279566229643,
+        "val_loss": 0.5772556919190619,
+        "val_miou": 0.6252623124120138,
+        "val_pixel_acc": 0.8192031979560852
+      },
+      "weights_path": "checkpoints/task3/unet_ce/best.pt",
+      "eval_seconds": 1.2355538215488195
+    },
+    "dice": {
+      "miou": 0.5778780397740308,
+      "class_iou": [
+        0.8767652825817018,
+        0.6575582973626569,
+        0.7628509990144252,
+        0.7109446873218019,
+        0.450472277593681,
+        0.6602613677861702,
+        0.0,
+        0.5041714065318106
+      ],
+      "valid_classes": 8,
+      "pixel_acc": 0.8065529774524145,
+      "best_epoch": 37,
+      "best_score": 0.5778809254589687,
+      "checkpoint_metrics": {
+        "train_loss": 0.34874079069057545,
+        "val_loss": 0.37267741395367515,
+        "val_miou": 0.5778809254589687,
+        "val_pixel_acc": 0.8065561652183533
+      },
+      "weights_path": "checkpoints/task3/unet_dice/best.pt",
+      "eval_seconds": 0.7620347049087286
+    },
+    "ce_dice": {
+      "miou": 0.6320352423413853,
+      "class_iou": [
+        0.8819268232790374,
+        0.636297759304846,
+        0.7972517121078105,
+        0.697334801451178,
+        0.6053367305677179,
+        0.7032565701409722,
+        0.15911758915616092,
+        0.5757599527233592
+      ],
+      "valid_classes": 8,
+      "pixel_acc": 0.8228379342918659,
+      "best_epoch": 95,
+      "best_score": 0.6320336288775265,
+      "checkpoint_metrics": {
+        "train_loss": 0.5575751103721298,
+        "val_loss": 1.0663947148455515,
+        "val_miou": 0.6320336288775265,
+        "val_pixel_acc": 0.8228396773338318
+      },
+      "weights_path": "checkpoints/task3/unet_ce_dice/best.pt",
+      "eval_seconds": 0.5605072323232889
+    }
+  },
+  "class_names": [
+    "sky",
+    "tree",
+    "road",
+    "grass",
+    "water",
+    "building",
+    "mountain",
+    "foreground"
+  ],
+  "image_size": 256,
+  "num_classes": 8,
+  "ignore_index": 255,
+  "val_samples": 143,
+  "wallclock_sec": 3.7796775549650192,
+  "environment": {
+    "device_requested": "0",
+    "torch": "2.5.1+cu121",
+    "torch_cuda": "12.1",
+    "cuda_available": true,
+    "cuda_device_count": 8,
+    "cuda_visible_devices": null
+  }
+}
