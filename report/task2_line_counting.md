@@ -28,17 +28,32 @@ $$
 |---|---|---|
 | 检测权重 | `runs/task2/road_vehicle_yolov8n_e120/weights/best.pt` | YOLOv8n / 120 epochs / Road Vehicle 21 类 |
 | Tracker | `bytetrack.yaml` | Ultralytics 默认 ByteTrack 配置（主输出） |
-| 输入视频 | `data/videos/second_video_2026-05-15_215310_932.mp4` | 路口、密度高，与遮挡分析同源 |
-| 计数线 | _待定（首版用 `200,300,1100,300`，看首帧 PNG 后人工调整）_ | 见下方 `counts.json` 字段 |
+| 输入视频 | `data/videos/second_video_2026-05-15_215310_932.mp4`（1280×720 / 30 fps / 28.4 s / 853 帧） | 路口、密度高，与遮挡分析同源 |
+| 计数线（首版） | `(200, 300, 1100, 300)` | y=300 压在车顶位置；total=6 (neg→pos=6) |
+| 计数线（终版） | `(60, 360, 1220, 360)` | y=360 压在远端主车道车轮触地线；x 范围加宽到画面左右各 60 px |
 | margin | 4.0 px | perpendicular jitter band |
 | 排除类 | `class_id ∈ {3 (bicycle), 20 (wheelbarrow)}` | 仅统计机动车 |
 | conf / iou / imgsz | 0.25 / 0.7 / 640 | 与训练评估一致 |
 
-## 4. 结果（待服务器运行后填入）
+## 4. 结果
 
-> 服务器端运行 `count_video.py final` 后，把 `counts.json` 的数据填到下表，并把 `*_counted.mp4` / `*_first_annotated.png` 拷贝到 `report/figures/task2/counting/`。
+### 4.0 首版（默认线 y=300）烟雾跑
 
-### 4.1 总览
+| 指标 | 值 |
+|---|---|
+| Total Count | 6 |
+| Positive → Negative | 0 |
+| Negative → Positive | 6 |
+| Per-class | `car=2, suv=3, motorbike=1` |
+| 视频时长 / 帧数 | 28.4 s / 853 帧 |
+| 含 Tracks 帧占比 | 853 / 853 |
+| 推理耗时 / GPU peak mem | 24.8 s / 32.0 MB（YOLOv8n） |
+| 日志 | `logs/swanlab/task2_second_counts_smoke.log` |
+| Run 目录 | `runs/track/second_video_bytetrack_counts_smoke/` |
+
+### 4.1 终版（调整线 y=360）总览（待运行后填入）
+
+> 服务器端运行 `count_video.py` final 后，把 `counts.json` 的数据填到下表，并把 `*_counted.mp4` / `*_first_annotated.png` 拷贝到 `report/figures/task2/counting/`。
 
 | 指标 | 值 |
 |---|---|
@@ -48,6 +63,8 @@ $$
 | 视频时长 / 帧数 | _T s / F 帧_ |
 | 含 Tracks 帧占比 | _frames_with_tracks / frame_count_ |
 | 推理耗时 / GPU peak mem | _T_wall s / M MB_ |
+| 日志 | `logs/swanlab/task2_second_counts_final.log` |
+| Run 目录 | `runs/track/second_video_bytetrack_counts_final/` |
 
 ### 4.2 Per-Class 计数（top-N）
 
