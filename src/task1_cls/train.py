@@ -20,7 +20,7 @@ from src.common.logger import setup_logging
 from src.common.metrics import topk_accuracy
 from src.common.seed import make_generator, seed_worker, set_seed
 from src.common.swanlab_logger import finish, format_run_name, init_run, log_metrics
-from src.task1_cls.models import build_resnet18_classifier
+from src.task1_cls.models import build_classifier
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -147,7 +147,8 @@ def main() -> int:
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=int(cfg.get("num_workers", 4)), generator=make_generator(seed), worker_init_fn=seed_worker)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=int(cfg.get("num_workers", 4)))
 
-    model = build_resnet18_classifier(
+    model = build_classifier(
+        cfg.get("model", "resnet18"),
         num_classes=int(cfg.get("num_classes", 102)),
         init=str(cfg.get("init", "pretrained")),
         attention=cfg.get("attention"),
@@ -164,7 +165,10 @@ def main() -> int:
         run_values["lr_head"] = lr_head
     run_name = format_run_name(run_values)
     checkpoint_dir = args.checkpoint_dir or (
-        REPO_ROOT / "checkpoints" / "task1" / f"{cfg.get('model', 'resnet18')}_{cfg.get('init', 'pretrained')}"
+        REPO_ROOT / "checkpoints" / "task1" / str(
+            cfg.get("experiment_id")
+            or f"{cfg.get('model', 'resnet18')}_{cfg.get('init', 'pretrained')}"
+        )
     )
     checkpoint_manager = CheckpointManager(checkpoint_dir, monitor="val_acc", mode="max")
     logger.info("checkpoint_dir=%s", checkpoint_dir)
