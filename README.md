@@ -108,6 +108,102 @@ The runner writes the project and experiment URLs to:
 
 - `logs/swanlab/swanlab_links.md`
 
+## Day 4 reproduction
+
+Run these commands on the GPU server from the repository root. GPU 0 is the
+currently recommended free device for the Day 4 reruns.
+
+```bash
+cd /root/Zhr/DL/HW2
+set -euo pipefail
+source scripts/cuda_driver_shim.sh
+prepare_cuda_driver_shim
+export CUDA_VISIBLE_DEVICES=0
+```
+
+Reproduce the full Task 1 hyperparameter grid when needed:
+
+```bash
+TASK1_DEVICE=cuda \
+TASK1_SWANLAB_MODE=cloud \
+TASK1_REQUIRE_SWANLAB=1 \
+bash scripts/run_task1_grid_server.sh hw2 configs/task1_resnet18_pretrained_grid.yaml \
+  2>&1 | tee logs/swanlab/task1_grid_day4_rerun.console.log
+```
+
+Retrain the final Task 1 model selected by the grid
+(`lr_backbone=1e-4`, `lr_head=5e-4`, `epochs=100`):
+
+```bash
+conda run -n hw2 python -m src.task1_cls.train \
+  --config configs/task1_resnet18_final.yaml \
+  --device cuda \
+  --swanlab-mode cloud \
+  --require-swanlab \
+  --links-file logs/swanlab/swanlab_links.md \
+  --log-file logs/swanlab/task1_final_bb1e-4_head5e-4_e100.log \
+  --checkpoint-dir checkpoints/task1/final_resnet18_pretrained_bb1e-4_head5e-4_e100 \
+  2>&1 | tee logs/swanlab/task1_final_bb1e-4_head5e-4_e100.console.log
+```
+
+Run ByteTrack on the second traffic video:
+
+```bash
+conda run -n hw2 python -m src.task2_detect_track.track_video \
+  --weights runs/task2/road_vehicle_yolov8n_e120/weights/best.pt \
+  --source data/videos/second_video_2026-05-15_215310_932.mp4 \
+  --tracker bytetrack.yaml \
+  --project runs/track \
+  --name second_video_bytetrack \
+  --device 0 \
+  --conf 0.25 \
+  --iou 0.7 \
+  --imgsz 640 \
+  --save-txt \
+  --save-conf \
+  2>&1 | tee logs/swanlab/task2_second_video_bytetrack.console.log
+```
+
+Run BoT-SORT on the same video:
+
+```bash
+conda run -n hw2 python -m src.task2_detect_track.track_video \
+  --weights runs/task2/road_vehicle_yolov8n_e120/weights/best.pt \
+  --source data/videos/second_video_2026-05-15_215310_932.mp4 \
+  --tracker botsort.yaml \
+  --project runs/track \
+  --name second_video_botsort \
+  --device 0 \
+  --conf 0.25 \
+  --iou 0.7 \
+  --imgsz 640 \
+  --save-txt \
+  --save-conf \
+  2>&1 | tee logs/swanlab/task2_second_video_botsort.console.log
+```
+
+Export the four-frame occlusion sequence and write the report paragraph:
+
+```bash
+conda run -n hw2 python -m src.task2_detect_track.analyze_occlusion \
+  --video runs/track/second_video_bytetrack/second_video_2026-05-15_215310_932.avi \
+  --labels-dir runs/track/second_video_bytetrack/labels \
+  --compare-labels-dir runs/track/second_video_botsort/labels \
+  --auto-window \
+  --num-frames 4 \
+  --output-dir report/figures/task2/occlusion_second \
+  --prefix second_occlusion \
+  --analysis-md report/task2_occlusion_analysis.md
+```
+
+Expected Day 4 outputs:
+
+- `checkpoints/task1/final_resnet18_pretrained_bb1e-4_head5e-4_e100/best.pt`
+- `runs/track/second_video_bytetrack/*.avi`
+- `runs/track/second_video_botsort/*.avi`
+- `report/figures/task2/occlusion_second/second_occlusion_f*.png`
+- `report/task2_occlusion_analysis.md`
+
 ## Notes
 
 Large datasets, logs, and model weights are not stored in this repository.

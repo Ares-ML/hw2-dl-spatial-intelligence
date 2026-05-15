@@ -1,0 +1,21 @@
+task: task1
+model: resnet18
+init: pretrained
+loss: ce
+lr: 1.0e-4
+lr_backbone: 1.0e-4
+lr_head: 5.0e-4
+epochs: 100
+seed: 42
+batch_size: 32
+num_workers: 4
+data_root: data/flower102
+image_size: 224
+num_classes: 102
+experiment_id: final_resnet18_pretrained_bb1e-4_head5e-4_e100
+swanlab:
+  group: task1
+  tags:
+    - day4
+    - final
+    - classification
