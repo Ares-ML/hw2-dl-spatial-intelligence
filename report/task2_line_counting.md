@@ -51,29 +51,29 @@ $$
 | 日志 | `logs/swanlab/task2_second_counts_smoke.log` |
 | Run 目录 | `runs/track/second_video_bytetrack_counts_smoke/` |
 
-### 4.1 终版（调整线 y=360）总览（待运行后填入）
-
-> 服务器端运行 `count_video.py` final 后，把 `counts.json` 的数据填到下表，并把 `*_counted.mp4` / `*_first_annotated.png` 拷贝到 `report/figures/task2/counting/`。
+### 4.1 终版（线 `(60, 360, 1220, 360)`）总览
 
 | 指标 | 值 |
 |---|---|
-| Total Count | _N_ |
-| Positive → Negative | _N1_ |
-| Negative → Positive | _N2_ |
-| 视频时长 / 帧数 | _T s / F 帧_ |
-| 含 Tracks 帧占比 | _frames_with_tracks / frame_count_ |
-| 推理耗时 / GPU peak mem | _T_wall s / M MB_ |
+| Total Count | **6** |
+| Positive → Negative（上→下） | 2 |
+| Negative → Positive（下→上） | 4 |
+| 视频时长 / 帧数 | 28.4 s / 853 帧 |
+| 含 Tracks 帧占比 | 853 / 853 |
+| Writer codec | `mp4v` |
 | 日志 | `logs/swanlab/task2_second_counts_final.log` |
 | Run 目录 | `runs/track/second_video_bytetrack_counts_final/` |
 
-### 4.2 Per-Class 计数（top-N）
+### 4.2 Per-Class 计数
 
 | 类别 | 计数 |
 |---|---|
-| car | _N_ |
-| truck | _N_ |
-| suv | _N_ |
-| ... | ... |
+| car | 2 |
+| motorbike | 3 |
+| rickshaw | 1 |
+| **合计** | **6** |
+
+> 与首版（y=300）相比，终版同样得到 total=6，但**方向分布更均衡**（4 上行 + 2 下行 vs 首版 0 + 6），说明 y=360 的车轮触地线能稳定捕获两个方向的车流；类别分布从 `car=2/suv=3/motorbike=1` 变为 `car=2/motorbike=3/rickshaw=1`，吻合视频中两轮车与三轮 rickshaw 沿主车道穿越的场景。
 
 ### 4.3 代表帧
 
