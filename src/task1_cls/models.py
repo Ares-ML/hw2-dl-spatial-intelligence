@@ -58,14 +58,43 @@ def build_resnet34_classifier(
     return model
 
 
+def build_vit_tiny_classifier(
+    *,
+    num_classes: int,
+    init: str = "pretrained",
+    **_unused,
+) -> nn.Module:
+    """ViT-Tiny (``timm.vit_tiny_patch16_224``) with a replaced classifier head.
+
+    Bonus comparison against the convolutional ResNet backbones. CBAM is not
+    applicable on ViT (no spatial-conv stack), so any ``attention``/``cbam_*``
+    kwargs from the shared factory call are silently ignored.
+    """
+
+    try:
+        import timm
+    except ImportError as exc:
+        raise RuntimeError(
+            "timm is required for vit_tiny; install with `pip install \"timm>=0.9\"`."
+        ) from exc
+
+    return timm.create_model(
+        "vit_tiny_patch16_224",
+        pretrained=(init == "pretrained"),
+        num_classes=num_classes,
+    )
+
+
 def build_classifier(model_name: str, **kwargs) -> nn.Module:
-    """Dispatch to the right ResNet builder based on the config ``model`` field."""
+    """Dispatch to the right builder based on the config ``model`` field."""
 
     name = (model_name or "resnet18").lower()
     if name == "resnet18":
         return build_resnet18_classifier(**kwargs)
     if name == "resnet34":
         return build_resnet34_classifier(**kwargs)
+    if name == "vit_tiny":
+        return build_vit_tiny_classifier(**kwargs)
     raise ValueError(
-        f"Unknown classifier model: {name!r} (supported: resnet18, resnet34)."
+        f"Unknown classifier model: {name!r} (supported: resnet18, resnet34, vit_tiny)."
     )

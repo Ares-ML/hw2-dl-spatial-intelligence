@@ -1,0 +1,22 @@
+task: task1
+model: vit_tiny
+init: pretrained
+loss: ce
+lr: 1.0e-4
+lr_backbone: 1.0e-4
+lr_head: 5.0e-4
+epochs: 50
+seed: 42
+batch_size: 32
+num_workers: 4
+data_root: data/flower102
+image_size: 224
+num_classes: 102
+experiment_id: bonus_vit_tiny_pretrained_bb1e-4_head5e-4_e50
+swanlab:
+  group: task1
+  tags:
+    - day5
+    - bonus
+    - transformer
+    - classification
