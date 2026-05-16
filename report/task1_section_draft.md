@@ -35,8 +35,14 @@ The grid results indicate that allowing the pretrained backbone to adapt more ac
 
 Full grid table: `report/tables/task1_grid_summary.md`. The final retraining configuration is fixed in `configs/task1_resnet18_final.yaml`, and the final model should be saved to `checkpoints/task1/final_resnet18_pretrained_bb1e-4_head5e-4_e100/best.pt`.
 
+## Bonus: ResNet-34 vs ResNet-18 Backbone
+
+A ResNet-34 (~21.4 M parameters, 1.83 × the ResNet-18 footprint) is trained under exactly the same recipe as the best ResNet-18 run (`bb=1e-4, head=5e-4`, 100 epochs, seed 42, `batch=32`, no augmentation change; CBAM disabled for both to isolate the backbone effect). The deeper backbone reaches a best validation accuracy of **0.9156** at **epoch 87**, edging the ResNet-18 best (`0.9138` at epoch 99) by **+0.18 pp** while peaking about 12 epochs earlier. The final-epoch validation accuracy is **0.9039**, slightly below the best — a post-peak drift of similar shape to ResNet-18's. Training accuracy saturates at 1.0 with a final training loss of 2.9e-4, so both backbones overfit Flower102 quickly and the validation set is the only meaningful selection signal. Given how small the gap is, the result is consistent with ResNet-34 being a minor improvement that could plausibly sit inside the seed-to-seed noise band rather than a decisive win for the deeper backbone.
+
+Full numbers in `report/tables/task1_resnet34_vs_resnet18.md`; config in `configs/task1_resnet34_final.yaml`; model in `checkpoints/task1/final_resnet34_pretrained_bb1e-4_head5e-4_e100/best.pt`.
+
 ## Conclusions And Limitations
 
-Pretraining is the dominant factor in Task 1: it raises validation accuracy from **45.86%** to **90.50%** under the same 50-epoch setup. CBAM remains competitive but does not outperform the plain pretrained baseline. The best hyperparameter grid setting further improves validation accuracy to **91.38%**, so it should be used as the final Task 1 model setting.
+Pretraining is the dominant factor in Task 1: it raises validation accuracy from **45.86%** to **90.50%** under the same 50-epoch setup. CBAM remains competitive but does not outperform the plain pretrained baseline. The best hyperparameter grid setting further improves validation accuracy to **91.38%**, so it should be used as the final Task 1 model setting. The ResNet-34 bonus run further confirms that on Flower102, going from 11.7 M to 21.4 M parameters yields at most a ~0.2 pp improvement — the training schedule, learning-rate split, and augmentation matter more than the backbone depth at this scale.
 
 The main limitation is that all models reach very high training accuracy, so the validation set becomes the primary signal for model selection. Future improvements should focus on stronger augmentation, regularization, or a larger pretrained backbone rather than simply adding epochs.
