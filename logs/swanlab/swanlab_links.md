@@ -21,3 +21,5 @@
 | task1 | resnet18_pretrained_ce_lrbb1e-4_head1e-3_e100_s42 | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence/runs/ex93fdnkth7aglroze67m |
 | task1 | resnet18_pretrained_ce_lrbb1e-4_head5e-4_e100_s42 | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence/runs/1vwvo8v15fwhvdbjo3jgl |
 | task3 | unet_random_ce_dice_lr1e-3_e100_s42 | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence/runs/jyz2c1zfffvo5rr2sj7ig |
+| task1 | resnet18_pretrained_ce_lrbb1e-4_head5e-4_e100_s42 | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence/runs/ba6runm4gvq0wcmq32jws |
+| task1 | resnet34_pretrained_ce_lrbb1e-4_head5e-4_e100_s42 | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence | https://swanlab.cn/@Ares_ML/hw2-dl-spatial-intelligence/runs/j5pkagzhmczyjy0nnnkrb |
