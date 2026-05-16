@@ -150,8 +150,11 @@ def pick_buckets(
 
 def resolve_device(device_str: str, *, require_cuda: bool = False) -> str:
     device_str = (device_str or "cpu").strip()
-    if device_str.lower() in {"cpu", "cuda", "mps"}:
-        return device_str.lower()
+    lowered = device_str.lower()
+    if lowered in {"cpu", "cuda", "mps"}:
+        return lowered
+    if lowered.startswith("cuda:"):
+        return lowered
     try:
         import torch
     except ImportError:
@@ -171,7 +174,7 @@ def resolve_device(device_str: str, *, require_cuda: bool = False) -> str:
         if require_cuda:
             raise RuntimeError(f"Invalid CUDA device '{device_str}'.")
         return "cpu"
-    return device_str
+    return f"cuda:{first_index}"
 
 
 def load_unet(weights: Path, *, num_classes: int, base_channels: int, bilinear: bool, device: str):

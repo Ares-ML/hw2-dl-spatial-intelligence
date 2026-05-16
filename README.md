@@ -300,8 +300,8 @@ bash scripts/run_smoke_server.sh hw2 2>&1 | tee run_smoke_server.log
 
 完整清单 + 建议云盘文件名 + sha256 + 加载示例都在 [`WEIGHTS_MANIFEST.md`](WEIGHTS_MANIFEST.md)。
 
-- 云盘 base URL：_<待填>_
-- 提取码：_<若有，待填>_
+- 云盘 base URL：链接：https://pan.baidu.com/s/1HrU0pjPZykTFZ8GlINiB5Q?pwd=213g
+- 提取码：213g
 - 必交三件（PDF §8.3）：`task1_resnet18_final.pt` / `task2_yolov8n_e120.pt` / `task3_unet_ce_dice.pt`
 - 加分 / 消融 5 件：见 manifest Tier 2 / Tier 3
 

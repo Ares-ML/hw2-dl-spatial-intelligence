@@ -9,7 +9,7 @@
 | 作者 / 学号 | _请填_ |
 | 分工 | 单人完成 |
 | GitHub | https://github.com/Ares-ML/hw2-dl-spatial-intelligence |
-| 模型权重云盘 | _Day 5 上传后填_ |
+| 模型权重云盘 | https://pan.baidu.com/s/1HrU0pjPZykTFZ8GlINiB5Q?pwd=213g |
 | 提交日期 | 2026-05-19 |
 
 ---

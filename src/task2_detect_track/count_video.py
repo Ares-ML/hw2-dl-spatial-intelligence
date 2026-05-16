@@ -19,6 +19,7 @@ import json
 import time
 from collections import defaultdict
 from pathlib import Path
+import os
 
 from src.task2_detect_track.line_counter import LineCounter
 from src.task2_detect_track.render_counts import (
@@ -56,6 +57,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iou", type=float, default=0.7)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--device", default="0")
+    parser.add_argument(
+        "--require-cuda",
+        action="store_true",
+        help="Fail fast if CUDA is unavailable instead of falling back to CPU.",
+    )
     parser.add_argument("--project", type=Path, default=DEFAULT_PROJECT)
     parser.add_argument("--name", default="second_video_bytetrack_counts")
     parser.add_argument("--vid-stride", type=int, default=1)
@@ -99,6 +105,68 @@ def get_cuda_peak_mem_mb(device_str: str) -> float | None:
     except Exception:
         return None
     return peak / (1024.0 * 1024.0)
+
+
+def _collect_cuda_diagnostics() -> dict[str, str | int | bool | None]:
+    try:
+        import torch
+    except ImportError:
+        return {"torch": "missing"}
+    diagnostics: dict[str, str | int | bool | None] = {
+        "torch": getattr(torch, "__version__", "unknown"),
+        "torch_cuda": getattr(torch.version, "cuda", None),
+        "cuda_available": torch.cuda.is_available(),
+        "cuda_device_count": torch.cuda.device_count(),
+    }
+    try:
+        diagnostics["cuda_visible_devices"] = os.environ.get("CUDA_VISIBLE_DEVICES")
+        diagnostics["nvidia_visible_devices"] = os.environ.get("NVIDIA_VISIBLE_DEVICES")
+    except Exception:
+        pass
+    try:
+        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+            diagnostics["cuda_device_0"] = torch.cuda.get_device_name(0)
+    except Exception:
+        diagnostics["cuda_device_0"] = None
+    return diagnostics
+
+
+def resolve_device(device_str: str, *, require_cuda: bool = False) -> str:
+    """Return a safe device string for Ultralytics/torch.
+
+    Falls back to CPU when CUDA is unavailable or the requested index is invalid.
+    If require_cuda is True, raises a RuntimeError when CUDA cannot be used.
+    """
+    device_str = (device_str or "cpu").strip()
+    if device_str.lower() in {"cpu", "cuda", "mps"}:
+        return device_str.lower()
+    try:
+        import torch
+    except ImportError:
+        if require_cuda:
+            raise RuntimeError("PyTorch is not installed, cannot use CUDA.")
+        return "cpu"
+    if not torch.cuda.is_available():
+        diagnostics = _collect_cuda_diagnostics()
+        if require_cuda:
+            raise RuntimeError(f"CUDA unavailable. Diagnostics: {diagnostics}")
+        print(f"[count_video] CUDA unavailable; falling back to CPU. Diagnostics: {diagnostics}")
+        return "cpu"
+    try:
+        first_index = int(device_str.split(",")[0])
+    except (ValueError, IndexError):
+        first_index = 0
+    if torch.cuda.device_count() <= first_index:
+        diagnostics = _collect_cuda_diagnostics()
+        message = (
+            f"Invalid CUDA device '{device_str}' (count={torch.cuda.device_count()}). "
+            f"Diagnostics: {diagnostics}"
+        )
+        if require_cuda:
+            raise RuntimeError(message)
+        print(f"[count_video] {message} Falling back to CPU.")
+        return "cpu"
+    return device_str
 
 
 def main() -> int:
@@ -158,13 +226,17 @@ def main() -> int:
     print(f"[count_video] line={line} margin={args.line_margin} exclude={sorted(exclude_classes)}")
     print(f"[count_video] writer={codec_label} -> {actual_video_path}")
 
+    resolved_device = resolve_device(args.device, require_cuda=args.require_cuda)
+    if resolved_device != args.device:
+        print(f"[count_video] device requested={args.device} resolved={resolved_device}")
+
     results_iter = model.track(
         source=source,
         tracker=args.tracker,
         conf=args.conf,
         iou=args.iou,
         imgsz=args.imgsz,
-        device=args.device,
+        device=resolved_device,
         stream=True,
         persist=True,
         save=False,
@@ -227,7 +299,7 @@ def main() -> int:
         writer.release()
 
     wallclock_sec = time.perf_counter() - wallclock_start
-    gpu_peak_mem_mb = get_cuda_peak_mem_mb(args.device)
+    gpu_peak_mem_mb = get_cuda_peak_mem_mb(resolved_device)
 
     payload: dict = {
         "source": str(Path(source).as_posix()),
@@ -256,7 +328,8 @@ def main() -> int:
         "conf": float(args.conf),
         "iou": float(args.iou),
         "imgsz": int(args.imgsz),
-        "device": args.device,
+    "device": resolved_device,
+    "device_requested": args.device,
         "smoke_frames": int(args.smoke_frames),
     }
 

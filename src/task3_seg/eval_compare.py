@@ -86,8 +86,11 @@ def resolve_device(device_str: str, *, require_cuda: bool = False) -> str:
     """Same shape as ``count_video.resolve_device`` — keeps CPU fallback safe."""
 
     device_str = (device_str or "cpu").strip()
-    if device_str.lower() in {"cpu", "cuda", "mps"}:
-        return device_str.lower()
+    lowered = device_str.lower()
+    if lowered in {"cpu", "cuda", "mps"}:
+        return lowered
+    if lowered.startswith("cuda:"):
+        return lowered
     try:
         import torch
     except ImportError:
@@ -110,7 +113,7 @@ def resolve_device(device_str: str, *, require_cuda: bool = False) -> str:
             )
         print(f"[eval_compare] Invalid CUDA device {device_str}; falling back to CPU.")
         return "cpu"
-    return device_str
+    return f"cuda:{first_index}"
 
 
 def build_val_loader(args, transforms_mod, dataset_cls):
@@ -361,7 +364,7 @@ def main() -> int:
     results: "OrderedDict[str, dict]" = OrderedDict()
     wallclock_start = time.perf_counter()
     for variant in variants:
-        weights = args.checkpoints_root / VARIANT_CHECKPOINT_DIR[variant] / "best.pt"
+        weights = (args.checkpoints_root / VARIANT_CHECKPOINT_DIR[variant] / "best.pt").resolve()
         if not weights.is_file():
             raise SystemExit(f"Missing checkpoint: {weights}")
         t0 = time.perf_counter()
@@ -372,7 +375,10 @@ def main() -> int:
             base_channels=args.base_channels,
             bilinear=args.bilinear,
         )
-        result["weights_path"] = str(weights.relative_to(REPO_ROOT).as_posix())
+        try:
+            result["weights_path"] = str(weights.relative_to(REPO_ROOT).as_posix())
+        except ValueError:
+            result["weights_path"] = str(weights.as_posix())
         result["eval_seconds"] = time.perf_counter() - t0
         results[variant] = result
         print(
