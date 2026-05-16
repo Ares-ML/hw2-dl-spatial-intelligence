@@ -149,6 +149,20 @@ conda run -n hw2 python -m src.task1_cls.train \
 
 ### 2. YOLOv8s 训练（~5—7 h）
 
+**Disk-check 假阳性说明**：直接 `yolo detect train model=yolov8s.pt ...` 会触发 Ultralytics 内部的 `check_disk_space`，而该函数在部分 Docker overlayfs 环境下读到 `shutil.disk_usage(...).free=0`，**假性**报 `MemoryError: Insufficient free disk space 0.0 MB < 32.3 MB required`。绕开方法：**预下载** `yolov8s.pt` 到 cwd，Ultralytics 的 `attempt_download_asset` 会第一步命中本地文件，跳过整条 `safe_download → check_disk_space` 链。
+
+#### 2a. 预下载 yolov8s.pt（~10 秒，镜像 fallback ghfast → gh-proxy → hf-mirror → 官方）
+
+```bash
+# 下载到 weights/yolov8s.pt（脚本默认）
+conda run -n hw2 python scripts/fetch_yolo_weight.py --model yolov8s.pt
+# 拷一份到 cwd 让 yolo CLI 直接命中
+cp weights/yolov8s.pt yolov8s.pt
+ls -la yolov8s.pt  # 应 ~22 MB
+```
+
+#### 2b. 正式训练
+
 ```bash
 conda run -n hw2 yolo detect train \
   data=data/road_vehicle/data.yaml \
@@ -160,6 +174,22 @@ conda run -n hw2 yolo detect train \
 ```
 
 > 若 batch=16 显存超：退到 `batch=12`。
+
+#### 2c. 兜底（脚本 4 个镜像都不通时）
+
+```bash
+# 备用 A：直接 curl ghfast
+curl -L -o yolov8s.pt \
+  "https://ghfast.top/https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8s.pt"
+
+# 备用 B：HF 镜像
+curl -L -o yolov8s.pt \
+  "https://hf-mirror.com/Ultralytics/YOLOv8/resolve/main/yolov8s.pt"
+
+ls -la yolov8s.pt  # 验证 ~22 MB
+```
+
+若两个 curl 都失败，**砍掉 YOLOv8s 加分**（YOLOv8n e120 主线 + ResNet-34 + ViT-Tiny 已经覆盖加分需求）。
 
 ### 3. YOLOv8s + ByteTrack 跟踪 + 越线计数（~10 min）
 
