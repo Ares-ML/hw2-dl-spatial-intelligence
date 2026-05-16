@@ -95,6 +95,27 @@ Representative frames (annotated demo video, `runs/track/second_video_bytetrack_
 
 The full algorithm derivation, the JSON metadata schema, and limitations (single-line-only, fast-target margin trade-off) are documented in `report/task2_line_counting.md`.
 
+## Bonus: YOLOv8s vs YOLOv8n
+
+A YOLOv8s detector is fine-tuned under identical configuration (`epochs=120, patience=30, imgsz=640, batch=16, seed=42, optimizer=auto, close_mosaic=10`) for a fair detector-only comparison. Training is launched through the same project wrapper `python -m src.task2_detect_track.train --config configs/task2_yolov8s.yaml` that was used for the YOLOv8n main run, so the only delta is the backbone size.
+
+| Detector | Params | Best mAP@50 | Best mAP@50-95 | Best Epoch | Final mAP@50 (early-stop) | Line-count Total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| YOLOv8n | ~3.2 M | 0.4436 | 0.2719 | 84 | 0.4295 (ep100) | 6 |
+| YOLOv8s | ~11.2 M | **0.5857** | **0.3141** | 42 | 0.5165 (ep58) | 5 |
+| Δ | ~3.5× | **+14.2 pp** | **+4.2 pp** | −42 ep | +8.7 pp | −1 |
+
+YOLOv8s reaches a substantially higher detection ceiling: **+14.2 pp mAP@50** and +4.2 pp mAP@50-95 over the YOLOv8n baseline, and it converges much earlier (best at ep42 vs ep84). Early stop also fires earlier (ep58 vs ep100) because the larger model overfits to the 2,704-image training set faster.
+
+The line-crossing count, however, **drops from 6 to 5** unique vehicles under identical line `(60, 360, 1220, 360)`, margin 4 px, and excluded classes. Per-class composition also shifts: YOLOv8s sees `car=3, motorbike=1, suv=1`; YOLOv8n sees `car=2, motorbike=3, rickshaw=1`. Two factors explain why a stronger detector can produce *fewer* counts on the same clip: (1) at the chosen `conf=0.25 / iou=0.7` thresholds, the more discriminative v8s collapses some borderline low-confidence frames that v8n still emitted, so ByteTrack receives fewer detections in those frames and can fail to keep a track alive across the line; (2) the class confidence distributions differ enough that the same physical object gets classified into different classes (`motorbike ↔ rickshaw` ambiguity in particular). The takeaway is that **detector mAP gains do not transfer monotonically to downstream counting** — the detector → tracker → counter pipeline has additional thresholds and association decisions that the mAP metric does not capture. For a counting-deployment scenario the right benchmark is end-to-end count accuracy against a hand-labelled ground truth, not detection mAP alone.
+
+Bonus artifacts:
+
+- `runs/task2/road_vehicle_yolov8s_e120/weights/best.pt` (~22 MB)
+- `runs/track/second_video_yolov8s_counts/second_video_2026-05-15_215310_932_counted.mp4`
+- `runs/track/second_video_yolov8s_counts/counts.json`
+- SwanLab run: `yolov8s_pretrained_yolo_lrdefault_e120_s42` (链接见 `logs/swanlab/swanlab_links.md`)
+
 ## Code Index
 
 | Module | File |

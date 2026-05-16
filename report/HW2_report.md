@@ -18,11 +18,11 @@
 
 本工作在三个公开数据集上完成视觉理解三项子任务，覆盖图像级分类、对象级检测+跟踪+越线计数、以及像素级语义分割：
 
-- **Task 1（Flower102 分类）**：以 ImageNet 预训练 ResNet-18 为主线，通过差化学习率（`backbone=1e-4, head=5e-4`）训练 100 epoch 获最佳验证准确率 **91.38%**；CBAM 注意力消融与超参网格证明 backbone 学习率提升与训练长度延长是关键改进点；加分实验 ResNet-34 与 ViT-Tiny 验证更深 CNN 与 Transformer 的代价/收益。
-- **Task 2（Road Vehicle 检测+跟踪+越线计数）**：YOLOv8n 训练 120 epoch（early-stop at e100），final mAP@50=**0.4295** / best mAP@50=0.4436；ByteTrack 与 BoT-SORT 在自拍 28.4 秒路口视频上做轨迹连续性对比；用叉乘符号 + counted_ids 去重 + 4 px margin 的越线计数算法在线 `(60,360,1220,360)` 下统计到 **6 辆机动车**跨线（2 下行 + 4 上行）。加分实验 YOLOv8s 评估更大模型的性能上限。
+- **Task 1（Flower102 分类）**：以 ImageNet 预训练 ResNet-18 为主线，通过差化学习率（`backbone=1e-4, head=5e-4`）训练 100 epoch 获最佳验证准确率 **91.38%**；CBAM 注意力消融与超参网格证明 backbone 学习率提升与训练长度延长是关键改进点。加分实验：ResNet-34 把准确率推到 **0.9156**（+0.18 pp），ViT-Tiny 仅得 **0.8397**（−7.41 pp）——揭示了在 1 k 训练样本 + 同 transform 配方下，ImageNet-pretrained CNN 仍领先同等参数预算的 Transformer。
+- **Task 2（Road Vehicle 检测+跟踪+越线计数）**：YOLOv8n 训练 120 epoch（early-stop at e100），final mAP@50=**0.4295** / best mAP@50=0.4436；ByteTrack 与 BoT-SORT 在自拍 28.4 秒路口视频上做轨迹连续性对比；用叉乘符号 + counted_ids 去重 + 4 px margin 的越线计数算法在线 `(60,360,1220,360)` 下统计到 **6 辆机动车**跨线（2 下行 + 4 上行）。加分实验 YOLOv8s 把 best mAP@50 抬到 **0.5857**（+14.2 pp），但同 line / 同阈值下越线计数从 6 → 5、per-class 分布也变——揭示了**检测指标 ≠ 计数指标**，下游链路阈值与关联策略会放大细微误差。
 - **Task 3（Stanford Background 分割）**：自实现 U-Net（base_channels=32），三种损失（CE / Dice / CE+Dice，λ=1.0）在严格同条件下对比，**CE+Dice 取得最佳全局 mIoU=0.6320**，Pixel Acc 0.8228；Dice 单独使用在长尾稀有类 `mountain` 上崩塌至 IoU 0.0；mask 可视化按 CE 模型 per-image mIoU 在 6 个档位样本（best / 2×median / 2×hard / worst）展示三种损失的差异。
 
-主要结论：（1）pretraining 在所有三任务上都是首要决定因素；（2）单纯增大 backbone 在 Flower102 这种小样本任务上只有边际收益；（3）组合损失（CE+Dice）在长尾分割上比单一损失稳健。代码、权重与曲线全部以 SwanLab 链接和 GitHub repo 公开复现。
+主要结论：（1）pretraining 在所有三任务上都是首要决定因素；（2）单纯增大 backbone（或换更新架构）在小数据集只有边际收益、有时甚至倒退；（3）下游指标（线越计数）对上游检测器的阈值/类别分布很敏感，应以端到端指标为准；（4）组合损失（CE+Dice）在长尾分割上比单一损失稳健。代码、权重与曲线全部以 SwanLab 链接和 GitHub repo 公开复现。
 
 ## 1. 引言
 
@@ -64,18 +64,19 @@
 
 详见独立章节：[task1_section_draft.md](task1_section_draft.md)
 
-**章节要点**：5 段（实验设置 / Pretraining 消融 / 注意力对比 / 超参网格 / **加分：ResNet-34 vs ResNet-18 Backbone** / 结论与局限）。最佳数字 = ResNet-18 final 0.9138（epoch 99）→ ResNet-34 bonus 0.9156（epoch 87，+0.18 pp）。ViT-Tiny 数字 Day 5 补。
+**章节要点**：6 段（实验设置 / Pretraining 消融 / 注意力对比 / 超参网格 / **加分：Backbone Comparison（ResNet-34 + ViT-Tiny vs ResNet-18）** / 结论与局限）。最佳数字 = ResNet-34 bonus **0.9156**（epoch 87，+0.18 pp vs ResNet-18 final 0.9138）；ViT-Tiny bonus **0.8397**（epoch 33，−7.41 pp）。
 
 辅助表格 / 图：
 
-- 主表：[report/tables/task1_grid_summary.md](tables/task1_grid_summary.md)、[task1_t1a_summary.md](tables/task1_t1a_summary.md)、[task1_t1c_summary.md](tables/task1_t1c_summary.md)、[task1_resnet34_vs_resnet18.md](tables/task1_resnet34_vs_resnet18.md)
-- 训练曲线（SwanLab 导出）：[report/figures/task1/](figures/task1/) 下 6 个子目录（t1_a/t1_c/t1_cbam/t1_final/t1_resnet34/t1_grid）共 72 张 PNG
+- 主表：[report/tables/task1_grid_summary.md](tables/task1_grid_summary.md)、[task1_t1a_summary.md](tables/task1_t1a_summary.md)、[task1_t1c_summary.md](tables/task1_t1c_summary.md)、[task1_resnet34_vs_resnet18.md](tables/task1_resnet34_vs_resnet18.md)（含 ResNet-18 / ResNet-34 / ViT-Tiny 三行）
+- 训练曲线（SwanLab 导出）：[report/figures/task1/](figures/task1/) 下 7 个子目录（t1_a/t1_c/t1_cbam/t1_final/t1_grid/t1_resnet34/t1_vit）
+- 加分 checkpoints：`checkpoints/task1/{final_resnet34_pretrained_bb1e-4_head5e-4_e100, bonus_vit_tiny_pretrained_bb1e-4_head5e-4_e50}/best.pt`
 
 ## 5. Task 2 — Road Vehicle Detection, Tracking, Counting
 
 详见独立章节：[task2_section_draft.md](task2_section_draft.md)
 
-**章节要点**：7 段（实验设置 / YOLOv8n 训练 / 检测指标 / 跟踪流程 / 遮挡分析 / 越线计数 / 结论与局限）。最终演示视频含 bbox/class/ID/计数线/统计面板/越线红点；总计 6 辆机动车跨线，方向分布 4 上 + 2 下，per-class car=2 motorbike=3 rickshaw=1。YOLOv8s 数字 Day 5 补。
+**章节要点**：8 段（实验设置 / YOLOv8n 训练 / 检测指标 / 跟踪流程 / 遮挡分析 / 越线计数 / **加分：YOLOv8s vs YOLOv8n** / 结论与局限）。主线最终演示视频含 bbox/class/ID/计数线/统计面板/越线红点；总计 6 辆机动车跨线，方向分布 4 上 + 2 下，per-class car=2 motorbike=3 rickshaw=1。加分 YOLOv8s best mAP@50=**0.5857**（+14.2 pp vs YOLOv8n 0.4436），但同 line 下越线计数 6 → 5。
 
 辅助表格 / 图：
 
@@ -83,6 +84,7 @@
 - 遮挡帧：[report/figures/task2/occlusion_second/](figures/task2/occlusion_second/) 与分析 [report/task2_occlusion_analysis.md](task2_occlusion_analysis.md)
 - 计数演示帧：[report/figures/task2/counting/](figures/task2/counting/) 3 张代表帧 + 元数据
 - 越线计数完整说明：[report/task2_line_counting.md](task2_line_counting.md)
+- 加分 artifacts：`runs/task2/road_vehicle_yolov8s_e120/weights/best.pt` + `runs/track/second_video_yolov8s_counts/{*_counted.mp4, counts.json}`
 
 ## 6. Task 3 — Stanford Background Segmentation
 
