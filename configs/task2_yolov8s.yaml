@@ -1,0 +1,24 @@
+task: task2
+model: yolov8s
+init: pretrained
+loss: yolo
+lr: default
+epochs: 120
+patience: 30
+seed: 42
+data: data/road_vehicle/data.yaml
+weights: yolov8s.pt
+imgsz: 640
+batch: 16
+device: 0
+workers: 4
+project: runs/task2
+name: road_vehicle_yolov8s_e120
+amp: false
+plots: true
+swanlab:
+  group: task2
+  tags:
+    - day5
+    - bonus
+    - detection

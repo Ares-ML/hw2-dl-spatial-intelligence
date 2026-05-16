@@ -161,19 +161,42 @@ cp weights/yolov8s.pt yolov8s.pt
 ls -la yolov8s.pt  # 应 ~22 MB
 ```
 
-#### 2b. 正式训练
+#### 2b. 正式训练（用项目 Python wrapper，不要直接用 bare yolo CLI）
+
+bare `yolo detect train ... 2>&1 | tee ...` 走 pipe 时 `tqdm` 检测到非 TTY 会**几乎不刷新输出**，给人"训练已挂"的错觉；且 bare yolo CLI **不接受** `--swanlab-mode`/`--require-swanlab`/`--links-file` 这些项目 argparse flag（会立刻 `SyntaxError`）。Day 2 那次成功的 YOLOv8n e120 用的是项目 wrapper `src/task2_detect_track/train.py`，本次 v8s 加分同样用它：
 
 ```bash
-conda run -n hw2 yolo detect train \
-  data=data/road_vehicle/data.yaml \
-  model=yolov8s.pt \
-  epochs=120 imgsz=640 batch=16 patience=30 \
-  project=runs/task2 name=road_vehicle_yolov8s_e120 \
-  seed=42 device=0 \
+# 启动前若上次半 run 残留，挪走（不删，便于查 results.csv 行数判断到底跑了多少 epoch）
+if [ -d runs/task2/road_vehicle_yolov8s_e120 ]; then
+  mv runs/task2/road_vehicle_yolov8s_e120 runs/task2/road_vehicle_yolov8s_e120_killed_$(date +%H%M)
+fi
+
+# fire（注意是 python -m，不是 yolo）
+conda run -n hw2 python -m src.task2_detect_track.train \
+  --config configs/task2_yolov8s.yaml \
+  --device cuda \
+  --swanlab-mode cloud \
+  --require-swanlab \
+  --links-file logs/swanlab/swanlab_links.md \
+  --log-file logs/swanlab/task2_bonus_yolov8s_e120.log \
   2>&1 | tee logs/swanlab/task2_bonus_yolov8s_e120.console.log
 ```
 
-> 若 batch=16 显存超：退到 `batch=12`。
+预期：
+- log 头部打印 SwanLab 实验 URL（点开实时看曲线，**不靠终端**判断进度）
+- `logs/swanlab/task2_bonus_yolov8s_e120.log` 每 epoch 写一行（Python `logging` 行缓冲，不被 tee 截断）
+- `runs/task2/road_vehicle_yolov8s_e120/results.csv` 每 epoch 追加一行
+- 5—7 h 完成
+
+中途确认还在跑（不要 kill）：
+
+```bash
+tail -n 20 logs/swanlab/task2_bonus_yolov8s_e120.log    # 行数应每 epoch 增长
+wc -l runs/task2/road_vehicle_yolov8s_e120/results.csv  # 同上
+nvidia-smi | grep -E "MiB|Default"                       # GPU 占用应 >> 0
+```
+
+> 若 batch=16 显存超：编辑 `configs/task2_yolov8s.yaml` 改 `batch: 12`。
 
 #### 2c. 兜底（脚本 4 个镜像都不通时）
 
