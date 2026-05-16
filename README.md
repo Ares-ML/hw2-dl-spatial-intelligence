@@ -3,7 +3,7 @@
 Graduate course homework for *Deep Learning and Spatial Intelligence*.
 
 - GitHub: https://github.com/Ares-ML/hw2-dl-spatial-intelligence
-- Weights cloud drive: _<待填>_ — 详见 [`WEIGHTS_MANIFEST.md`](WEIGHTS_MANIFEST.md)
+- Weights cloud drive: https://pan.baidu.com/s/1HrU0pjPZykTFZ8GlINiB5Q?pwd=213g
 
 ## 1. Tasks
 
