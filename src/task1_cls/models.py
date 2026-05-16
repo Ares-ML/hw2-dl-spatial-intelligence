@@ -69,7 +69,16 @@ def build_vit_tiny_classifier(
     Bonus comparison against the convolutional ResNet backbones. CBAM is not
     applicable on ViT (no spatial-conv stack), so any ``attention``/``cbam_*``
     kwargs from the shared factory call are silently ignored.
+
+    On CN servers ``huggingface.co`` is frequently unreachable, so this builder
+    defaults ``HF_ENDPOINT`` to the community mirror ``https://hf-mirror.com``
+    before importing timm. Set ``HF_ENDPOINT`` explicitly in the environment
+    (e.g. to ``https://huggingface.co`` for international hosts, or to a
+    private cache) before launching the training script to override.
     """
+
+    import os
+    os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
     try:
         import timm

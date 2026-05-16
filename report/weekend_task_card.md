@@ -110,6 +110,25 @@ mkdir -p logs/swanlab
 
 ### 1. ViT-Tiny 训练（~2 h on RTX 4090）
 
+**HF 镜像说明**：`timm.create_model("vit_tiny_patch16_224", pretrained=True)` 内部会向 `huggingface.co` 下载权重；国内服务器无法直连。`build_vit_tiny_classifier` 已经把 `HF_ENDPOINT` 默认值改成 `https://hf-mirror.com`（在 import timm 之前 `os.environ.setdefault`），无需命令行额外设置；若海外环境想用 huggingface.co，外层 `export HF_ENDPOINT=https://huggingface.co` 即可覆盖。
+
+#### 1a. 镜像预热 / 缓存权重（5 秒）
+
+```bash
+conda run -n hw2 python -c "
+import os
+os.environ.setdefault('HF_ENDPOINT', 'https://hf-mirror.com')
+print('HF_ENDPOINT=', os.environ['HF_ENDPOINT'])
+import timm
+m = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=102)
+print('ViT-Tiny OK, params=', sum(p.numel() for p in m.parameters())/1e6, 'M')
+"
+```
+
+预期：`ViT-Tiny OK, params= 5.7 M`。缓存到 `~/.cache/huggingface/hub/models--timm--vit_tiny_patch16_224.augreg_in21k_ft_in1k/`，后续训练不再走网络。
+
+#### 1b. 正式训练
+
 ```bash
 conda run -n hw2 python -m src.task1_cls.train \
   --config configs/task1_vit_tiny_pretrained.yaml \
@@ -120,6 +139,13 @@ conda run -n hw2 python -m src.task1_cls.train \
 ```
 
 预期：`checkpoints/task1/bonus_vit_tiny_pretrained_bb1e-4_head5e-4_e50/best.pt` + swanlab 链接。
+
+#### 1c. 兜底（hf-mirror 也不可达时）
+
+按可达性递增：
+1. **手动 safetensors**：在外网机器 `huggingface-cli download timm/vit_tiny_patch16_224.augreg_in21k_ft_in1k model.safetensors`，`scp` 到 `~/.cache/huggingface/hub/models--timm--vit_tiny_patch16_224.augreg_in21k_ft_in1k/snapshots/<sha>/`。
+2. **ModelScope CDN**：`pip install modelscope && modelscope download --model timm/vit_tiny_patch16_224.augreg_in21k_ft_in1k`，再按 HF cache 目录结构重命名。
+3. **砍掉 ViT-Tiny 加分**：已有 ResNet-34 覆盖 Task 1 加分需求，直接专注 YOLOv8s。
 
 ### 2. YOLOv8s 训练（~5—7 h）
 
