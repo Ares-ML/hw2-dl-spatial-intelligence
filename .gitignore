@@ -1,9 +1,20 @@
 # Course handouts and local planning docs
 pdf/
 参考文档与执行方案/
+latex/
+slides/
+slides_v2/
+修改/
+llm_report_context.md
+report/claude_upload_checklist.md
+report/presentation_outline.md
 
 # Data, logs, outputs
 data/*
+!data/videos/
+data/videos/*
+!data/videos/task2_video1_line_count_yolov8n_botsort_h264.mp4
+!data/videos/task2_video9_occlusion_botsort_h264.mp4
 !data/road_vehicle/
 data/road_vehicle/*
 !data/road_vehicle/data.yaml

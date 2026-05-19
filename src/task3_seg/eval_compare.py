@@ -295,7 +295,7 @@ def plot_curves(series: "OrderedDict[str, list[dict]]", path: Path) -> None:
         ("val_miou", "Val mIoU", "mIoU"),
         ("val_pixel_acc", "Val Pixel Acc", "pixel accuracy"),
     ]
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=150)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=300)
     palette = {"ce": "#1f77b4", "dice": "#ff7f0e", "ce_dice": "#2ca02c"}
     for ax, (key, title, ylabel) in zip(axes.flat, panels):
         for variant, rows in series.items():
@@ -316,7 +316,7 @@ def plot_curves(series: "OrderedDict[str, list[dict]]", path: Path) -> None:
         ax.legend(loc="best", fontsize=9)
     fig.suptitle("Task 3 — U-Net training curves under three losses", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
-    fig.savefig(path, bbox_inches="tight", pad_inches=0.15)
+    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.15)
     plt.close(fig)
 
 

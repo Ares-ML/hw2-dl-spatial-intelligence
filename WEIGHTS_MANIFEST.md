@@ -46,7 +46,7 @@ done
 | Task | Cloud Filename | Server Path | 实验 | 关键数字 | Size | SHA256 |
 |---|---|---|---|---|---:|---|
 | T3 | `task3_unet_ce.pt` | `checkpoints/task3/unet_ce/best.pt` | U-Net CE only, 100 ep | Best mIoU 0.6253 @ ep98 | 89 MB | d4d64276b065 |
-| T3 | `task3_unet_dice.pt` | `checkpoints/task3/unet_dice/best.pt` | U-Net Dice only, 100 ep | Best mIoU 0.5779 @ ep37 | 89 MB | cbb33a534bb2 |
+| T3 | `task3_unet_dice.pt` | `checkpoints/task3/unet_dice/best.pt` | U-Net Dice only, 100 ep | Best mIoU 0.5779 @ ep37 | 89 MB | b0f46ae91831 |
 
 ## 建议的云盘组织结构
 

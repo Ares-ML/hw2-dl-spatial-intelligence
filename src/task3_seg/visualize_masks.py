@@ -231,7 +231,7 @@ def render_grid(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     rows = len(samples)
     cols = 2 + len(variants)  # image, GT, then one per variant
-    fig, axes = plt.subplots(rows, cols, figsize=(3 * cols, 3 * rows), dpi=120)
+    fig, axes = plt.subplots(rows, cols, figsize=(3 * cols, 3 * rows), dpi=300)
     if rows == 1:
         axes = axes.reshape(1, -1)
 
@@ -271,7 +271,7 @@ def render_grid(
 
     fig.suptitle("Task 3 — Mask comparison across three losses", fontsize=12)
     fig.tight_layout(rect=(0.02, 0, 1, 0.97))
-    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.2)
+    fig.savefig(output_path, dpi=300, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 

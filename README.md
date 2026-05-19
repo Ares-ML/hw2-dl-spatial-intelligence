@@ -24,8 +24,11 @@ hw2-dl-spatial-intelligence/
 │   ├── task1_vit_tiny_pretrained.yaml
 │   ├── task2_yolov8{n,s}.yaml
 │   └── task3_unet_{ce,dice,ce_dice}.yaml
-├── data/                            # 数据集（不入库；prepare_*.py 准备）
-│   ├── flower102/, road_vehicle/, stanford_background/, videos/
+├── data/                            # 数据集不入库；仅保留 Task 2 报告视频
+│   ├── flower102/, road_vehicle/, stanford_background/
+│   └── videos/
+│       ├── task2_video1_line_count_yolov8n_botsort_h264.mp4
+│       └── task2_video9_occlusion_botsort_h264.mp4
 ├── scripts/                         # 数据准备、烟雾测试、镜像下载
 │   ├── prepare_{flower102,road_vehicle,stanford_background}.py
 │   ├── setup_env_server.sh, verify_env_server.sh
@@ -42,7 +45,7 @@ hw2-dl-spatial-intelligence/
 │   ├── task1/, task3/
 ├── runs/                            # YOLO 训练 + 跟踪 + 越线计数输出（不入库）
 │   ├── task2/road_vehicle_yolov8{n,s}_e120/
-│   └── track/second_video_*_{bytetrack,botsort,counts_*}/
+│   └── track/
 ├── report/                          # 报告与图表
 │   ├── HW2_report.md, task{1,2,3}_section_draft.md
 │   ├── task2_occlusion_analysis.md, task2_line_counting.md
@@ -63,7 +66,12 @@ conda run -n hw2 python scripts/prepare_road_vehicle.py         # Task 2（Kaggl
 conda run -n hw2 python scripts/prepare_stanford_background.py  # Task 3
 ```
 
-Task 2 自拍视频请放到 `data/videos/`（不在 repo 内）；本作业使用的是 `data/videos/second_video_2026-05-15_215310_932.mp4`，1280×720 / 30 fps / 28.4 s。
+Task 2 报告实际使用的两段最终 H.264 视频已随 repo 提交到 `data/videos/`：
+
+- `data/videos/task2_video1_line_count_yolov8n_botsort_h264.mp4`：视频 1 越线计数演示，1920×1080 / 30 fps / 617 帧 / 20.57 s，YOLOv8n + BoT-SORT，计数线 `(0,720,1920,720)`，自动越线计数 total=41。
+- `data/videos/task2_video9_occlusion_botsort_h264.mp4`：视频 9 遮挡与 ID 跳变分析演示，1920×1080 / 30 fps / 853 帧 / 28.43 s，BoT-SORT `track_buffer=240`。
+
+原始数据集、训练输出、权重和其它中间视频仍由 `.gitignore` 排除；如需重跑完整检测/跟踪/计数管线，可将原始自采集视频另放到 `data/videos/` 并替换下方命令中的 `--source`。
 
 ## 4. 环境配置
 
@@ -95,10 +103,13 @@ bash scripts/verify_env_server.sh
 | Python | 3.10 |
 | PyTorch | 2.5.1 + CUDA 11.8 |
 | ultralytics | 8.4.41 |
-| timm | >= 0.9（ViT-Tiny 加分需要） |
+| timm | 1.0.15（ViT-Tiny 加分需要） |
 | albumentations | 2.0.8 |
 | swanlab | 0.7.17 |
 | opencv-python-headless | 4.10.0.84 |
+| numpy | 2.2.6 |
+| Pillow | 12.1.1 |
+| PyYAML | 6.0.3 |
 
 ### 4.4 CUDA 驱动 shim（容器内）
 
@@ -222,38 +233,42 @@ print('epoch=', ck['epoch'], 'best_score=', ck['best_score'], 'metrics=', ck['me
 ### 6.2 Task 2：跟踪 + 越线计数 + 遮挡分析
 
 ```bash
-# 跟踪：ByteTrack（主输出）
+# 将 RAW_VIDEO_1 / RAW_VIDEO_9 替换为原始自采集视频路径；repo 内保留的是最终 H.264 证据视频。
+RAW_VIDEO_1=data/videos/raw_video1.mp4
+RAW_VIDEO_9=data/videos/raw_video9.mp4
+
+# 跟踪：ByteTrack（对照输出）
 conda run -n hw2 python -m src.task2_detect_track.track_video \
   --weights runs/task2/road_vehicle_yolov8n_e120/weights/best.pt \
-  --source data/videos/second_video_2026-05-15_215310_932.mp4 \
+  --source "$RAW_VIDEO_9" \
   --tracker bytetrack.yaml \
-  --project runs/track --name second_video_bytetrack \
+  --project runs/track --name task2_video9_bytetrack \
   --device 0 --save-txt --save-conf
 
 # 跟踪：BoT-SORT（遮挡对照）
 conda run -n hw2 python -m src.task2_detect_track.track_video \
   --weights runs/task2/road_vehicle_yolov8n_e120/weights/best.pt \
-  --source data/videos/second_video_2026-05-15_215310_932.mp4 \
+  --source "$RAW_VIDEO_9" \
   --tracker botsort.yaml \
-  --project runs/track --name second_video_botsort \
+  --project runs/track --name task2_video9_botsort \
   --device 0 --save-txt --save-conf
 
 # 越线计数：含 bbox/class/ID/计数线/统计面板/越线红点的最终演示视频
 conda run -n hw2 python -m src.task2_detect_track.count_video \
   --weights runs/task2/road_vehicle_yolov8n_e120/weights/best.pt \
-  --source data/videos/second_video_2026-05-15_215310_932.mp4 \
-  --line "60,360,1220,360" --line-margin 4.0 --exclude-classes "3,20" \
+  --source "$RAW_VIDEO_1" \
+  --line "0,720,1920,720" --line-margin 4.0 \
   --device 0 --require-cuda \
-  --project runs/track --name second_video_bytetrack_counts_final
+  --project runs/track --name task2_video1_botsort_counts_final
 
 # 遮挡 3-4 帧分析：自动找 max-IoU 窗口，导出 PNG + 写入 Markdown 段
 conda run -n hw2 python -m src.task2_detect_track.analyze_occlusion \
-  --video runs/track/second_video_bytetrack/second_video_2026-05-15_215310_932.avi \
-  --labels-dir runs/track/second_video_bytetrack/labels \
-  --compare-labels-dir runs/track/second_video_botsort/labels \
+  --video runs/track/task2_video9_bytetrack/raw_video9.avi \
+  --labels-dir runs/track/task2_video9_bytetrack/labels \
+  --compare-labels-dir runs/track/task2_video9_botsort/labels \
   --auto-window --num-frames 4 \
-  --output-dir report/figures/task2/occlusion_second \
-  --prefix second_occlusion \
+  --output-dir report/figures/task2/occlusion_video9 \
+  --prefix video9_occlusion \
   --analysis-md report/task2_occlusion_analysis.md
 ```
 
@@ -307,7 +322,7 @@ bash scripts/run_smoke_server.sh hw2 2>&1 | tee run_smoke_server.log
 
 ## 8. 报告
 
-主报告 [`report/HW2_report.md`](report/HW2_report.md)；各任务独立草稿 [`task1_section_draft.md`](report/task1_section_draft.md) / [`task2_section_draft.md`](report/task2_section_draft.md) / [`task3_section_draft.md`](report/task3_section_draft.md)；提交日（5/19）导出为 PDF。
+最终报告源文件为本地 `pdf/初稿v4.tex`，编译 PDF 为本地 `pdf/报告初稿_v4.pdf`，图片统一放在本地 `pdf/figures/` 下，PDF 由 Overleaf 编译导出。`report/` 目录保留各任务草稿与分析材料：[`report/HW2_report.md`](report/HW2_report.md)、[`task1_section_draft.md`](report/task1_section_draft.md)、[`task2_section_draft.md`](report/task2_section_draft.md)、[`task3_section_draft.md`](report/task3_section_draft.md)。
 
 ## 9. SwanLab
 
